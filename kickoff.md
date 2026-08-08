@@ -17,6 +17,13 @@ El último bloque de cambios incluye la corrección de la fuente declarada por e
 brief, el runtime de Vercel, la configuración de rutas, el cache efímero de
 serverless y la documentación operativa. La producción fue validada con FMP.
 
+## Protocolo de reanudación
+
+Codex, Claude Code y OpenCode comparten el mismo contexto versionado. Al iniciar
+una nueva sesión, deben leer `AGENTS.md`, `kickoff.md`, `README.md`,
+`DECISIONS.md` y `TODO.md` antes de modificar archivos. `CLAUDE.md` apunta a
+este mismo protocolo para que Claude Code lo cargue automáticamente.
+
 ## Arquitectura
 
 - `bot/fetcher/`: proveedores de datos, cache y resolución de CEDEARs/ADRs.
