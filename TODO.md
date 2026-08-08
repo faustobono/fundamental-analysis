@@ -13,6 +13,18 @@
 
 ## Media prioridad
 
+- [x] Agregar botones "i" de info en la web (screener + brief) explicando cada
+      métrica, % y estadística — ROIC, márgenes, múltiplos, percentil vs.
+      z-score, cobertura, pocos peers, CEDEAR/monedas mixtas, WACC omitido,
+      etc. Glosario estático en `bot/web/static/glossary.js` (33+ entradas),
+      componente reusable en `info.js` (popover con click-delegation, no un
+      listener por botón). Verificado en navegador: 302 tests Python sin
+      cambios (es una feature 100% frontend), sin errores de consola, dark
+      mode y mobile (375px) OK. Bug real encontrado y corregido en el camino:
+      el popover se cerraba solo ante cualquier scroll (incluso el
+      scroll-into-view de un click automatizado) — ahora reposiciona en vez de
+      cerrar. Sin commitear todavía.
+
 - [x] Corregir `gaps()` de `CompanyProfile`: acusaba a yfinance de no publicar
       segmentos incluso corriendo con `--provider fmp` (mensaje hardcodeado,
       reproducido contra producción con AAPL). Se agregó `CompanyProfile.provider`

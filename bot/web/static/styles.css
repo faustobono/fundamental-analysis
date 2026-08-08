@@ -294,7 +294,10 @@ button.primary:disabled { opacity: 0.55; cursor: progress; }
   .metric .metric-pct { grid-area: pct; }
 }
 
-.metric-label { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* `.metric-label` es el contenedor grid; el texto trunca adentro, el botón "i"
+   queda siempre visible afuera del truncamiento (flex: none). */
+.metric-label { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--text-dim); }
+.metric-label-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .metric-dir { color: var(--text-faint); font-size: 11px; }
 .metric-value { font-family: var(--mono); font-size: 12.5px; text-align: right; }
 
@@ -478,3 +481,79 @@ button.primary:disabled { opacity: 0.55; cursor: progress; }
 .stat-value { font-family: var(--mono); font-size: 13px; font-weight: 650; }
 
 .warnings li.gap { color: var(--text-dim); background: var(--surface-2); }
+
+/* --- botón de info + popover ------------------------------------------------ */
+
+.info-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+/* Dentro de `.metric-label` el espaciado ya lo da el `gap` del flex container. */
+.metric-label .info-btn { margin-left: 0; }
+
+.info-btn:hover, .info-btn:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.info-popover {
+  position: absolute;
+  z-index: 50;
+  width: min(280px, calc(100vw - 24px));
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.info-popover-title {
+  margin: 0 22px 4px 0;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.info-popover-body { margin: 0; color: var(--text-dim); }
+
+.info-popover-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.info-popover-close:hover { background: var(--surface-2); color: var(--text); }

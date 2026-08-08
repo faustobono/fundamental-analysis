@@ -22,8 +22,21 @@ Sesión de Claude Code (después del deploy): se detectó contra producción
 declaraba "Segmentos de ingreso: yfinance no los publica." sin importar el
 proveedor real. Se agregó `CompanyProfile.provider` (seteado en
 `assemble_profile`, tanto desde `build_profile` como desde `build_profile_fmp`)
-y se usa en `gaps()` y en `render_data_block`. No commiteado todavía — sin
-push ni deploy, según el protocolo de `AGENTS.md`. 302 tests, todos pasan.
+y se usa en `gaps()` y en `render_data_block`. Ese cambio quedó commiteado
+(`f303d0b`), no pusheado.
+
+Misma sesión, después: se agregaron botones "i" de info en toda la web
+(screener y brief) para explicar cada métrica/%/estadística. Archivos nuevos:
+`bot/web/static/glossary.js` (glosario estático, 33+ conceptos, clave = mismo
+`name`/`metric` que ya manda el JSON del backend) y `bot/web/static/info.js`
+(componente de popover, un solo listener delegado). Se tocaron `app.js`,
+`brief.js`, `index.html`, `styles.css` y el `STATIC_FILES` de `server.py`. Sin
+cambios en Python más allá del allowlist — 302 tests siguen pasando igual.
+Verificado en navegador con browser tooling: popover abre/cierra/hace toggle
+bien, dark mode y mobile (375px) correctos, accesible (aria-label por botón).
+Bug encontrado y corregido en el camino: cerrar el popover en cualquier
+`scroll` event era demasiado agresivo (lo cerraba un scroll de un par de
+píxeles); ahora reposiciona en vez de cerrar. **Sin commitear.**
 
 ## Protocolo de reanudación
 

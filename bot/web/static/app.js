@@ -10,6 +10,7 @@ const els = {
   tickers: $("#tickers"),
   method: $("#method"),
   methodHint: $("#method-hint"),
+  methodInfo: $("#method-info"),
   topn: $("#topn"),
   cache: $("#cache"),
   run: $("#run"),
@@ -45,7 +46,10 @@ function renderMetric(metric, method) {
   const row = document.createElement("div");
   row.className = "metric";
   row.innerHTML = `
-    <span class="metric-label">${metric.label} <span class="metric-dir">${metric.higher_is_better ? "↑" : "↓"}</span></span>
+    <span class="metric-label">
+      <span class="metric-label-text">${metric.label} <span class="metric-dir">${metric.higher_is_better ? "↑" : "↓"}</span></span>
+      ${infoButtonHTML(metric.name)}
+    </span>
     <span class="metric-value"></span>
     <span class="bar-track"><span class="bar-fill"></span></span>
     <span class="metric-pct"></span>`;
@@ -66,18 +70,19 @@ function renderMissing(missing) {
   const row = document.createElement("div");
   row.className = "metric metric-missing";
   row.innerHTML = `
-    <span class="metric-label">${missing.label}</span>
+    <span class="metric-label">
+      <span class="metric-label-text">${missing.label}</span>
+      ${infoButtonHTML("missing_metric")}
+    </span>
     <span class="metric-value">sin dato</span>
     <span class="bar-track"></span>
     <span class="metric-pct">—</span>`;
-  row.title = "El proveedor no reporta esta métrica. Se excluye del puntaje y se " +
-    "renormalizan los pesos: no penaliza ni premia.";
   return row;
 }
 
-function detailItem(label, value, isNa) {
+function detailItem(label, value, isNa, infoKey) {
   return `<div class="detail-item">
-    <dt>${label}</dt>
+    <dt>${label}${infoKey ? infoButtonHTML(infoKey) : ""}</dt>
     <dd class="${isNa ? "na" : ""}">${value}</dd>
   </div>`;
 }
@@ -88,31 +93,36 @@ function renderDetail(score) {
 
   const tags = [];
   if (snap.is_cedear) {
-    tags.push(`<span class="badge badge-info">vía ${snap.source_ticker}</span>`);
+    tags.push(
+      `<span class="badge badge-info">vía ${snap.source_ticker}</span>${infoButtonHTML("cedear")}`
+    );
   }
   if (snap.currency_mismatch) {
-    tags.push(`<span class="badge badge-warn">${snap.currency} / ${snap.quote_currency}</span>`);
+    tags.push(
+      `<span class="badge badge-warn">${snap.currency} / ${snap.quote_currency}</span>` +
+        infoButtonHTML("currency_mismatch")
+    );
   }
 
   const ratios = snap.ratios
-    .map((r) => detailItem(r.label, formatValue(r.value, r.format), r.value === null))
+    .map((r) => detailItem(r.label, formatValue(r.value, r.format), r.value === null, r.name))
     .join("");
 
   const scale = [
-    ["Market cap", snap.scale.market_cap, "money"],
-    ["Ingresos", snap.scale.revenue, "money"],
-    ["Free cash flow", snap.scale.free_cash_flow, "money"],
-    ["Deuda total", snap.scale.total_debt, "money"],
-    ["Patrimonio", snap.scale.total_equity, "money"],
-    ["Tasa efectiva", snap.scale.effective_tax_rate, "pct"],
+    ["Market cap", snap.scale.market_cap, "money", null],
+    ["Ingresos", snap.scale.revenue, "money", "revenue"],
+    ["Free cash flow", snap.scale.free_cash_flow, "money", "free_cash_flow"],
+    ["Deuda total", snap.scale.total_debt, "money", null],
+    ["Patrimonio", snap.scale.total_equity, "money", null],
+    ["Tasa efectiva", snap.scale.effective_tax_rate, "pct", "effective_tax_rate"],
   ]
-    .map(([label, value, fmt]) => detailItem(label, formatValue(value, fmt), value === null))
+    .map(([label, value, fmt, key]) => detailItem(label, formatValue(value, fmt), value === null, key))
     .join("");
 
   box.innerHTML = `
     <p class="meta-line">
       ${snap.industry ? `<span>${snap.industry}</span> ·` : ""}
-      <span>cobertura ${Math.round(score.coverage * 100)}%</span> ·
+      <span>cobertura ${Math.round(score.coverage * 100)}%${infoButtonHTML("coverage")}</span> ·
       <span>${snap.currency ?? "?"}</span> ·
       <span>traído ${new Date(snap.as_of).toLocaleString("es-AR")}</span>
       ${tags.length ? `· ${tags.join(" ")}` : ""}
@@ -137,6 +147,7 @@ function renderCard(score, method) {
   card.querySelector(".company").textContent = score.company_name ?? "";
   card.querySelector(".composite-value").textContent =
     method === "percentile" ? score.composite.toFixed(3) : score.composite.toFixed(2);
+  card.querySelector(".composite-label").insertAdjacentHTML("beforeend", infoButtonHTML("composite_score"));
 
   const metrics = card.querySelector(".metrics");
   score.metrics.forEach((m) => metrics.appendChild(renderMetric(m, method)));
@@ -168,8 +179,7 @@ function renderSector(sector, method, topN) {
   if (sector.thin) {
     const badge = node.querySelector(".sector-thin");
     badge.hidden = false;
-    badge.title = "Con tan pocas empresas el percentil sectorial no es significativo: " +
-      "con dos, una saca 0 y la otra 100.";
+    badge.insertAdjacentHTML("afterend", infoButtonHTML("thin_sector"));
   }
 
   const cards = node.querySelector(".cards");
@@ -288,9 +298,14 @@ async function runScreen(event) {
 // El top-N es un filtro de vista: re-renderizar no cuesta un fetch nuevo.
 els.topn.addEventListener("change", () => lastPayload && render(lastPayload));
 
-els.method.addEventListener("change", () => {
+function updateMethodInfo() {
   els.methodHint.textContent = METHOD_HINTS[els.method.value];
-});
+  els.methodInfo.innerHTML = infoButtonHTML(
+    els.method.value === "percentile" ? "percentile_method" : "zscore_method"
+  );
+}
+
+els.method.addEventListener("change", updateMethodInfo);
 
 els.form.addEventListener("submit", runScreen);
 
@@ -310,4 +325,4 @@ Object.entries(PRESETS).forEach(([name, tickers]) => {
 });
 
 els.tickers.value = localStorage.getItem("tickers") ?? PRESETS["Mixto"];
-els.methodHint.textContent = METHOD_HINTS[els.method.value];
+updateMethodInfo();

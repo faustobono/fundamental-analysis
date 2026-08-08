@@ -42,7 +42,9 @@
     const table = document.createElement("table");
     table.className = "data-table";
     table.innerHTML =
-      `<thead><tr><th>Ejercicio</th>${section.rows.map((r) => `<th>${r.label}</th>`).join("")}</tr></thead>`;
+      `<thead><tr><th>Ejercicio</th>${section.rows
+        .map((r) => `<th>${r.label}${infoButtonHTML(r.name)}</th>`)
+        .join("")}</tr></thead>`;
     const tbody = document.createElement("tbody");
     section.years.forEach((year, i) => {
       const cells = section.rows
@@ -92,10 +94,13 @@
     const box = section("Identidad");
     const tags = [];
     if (id.is_cedear) {
-      tags.push(`<span class="badge badge-info">vía ${id.source_ticker}</span>`);
+      tags.push(`<span class="badge badge-info">vía ${id.source_ticker}</span>${infoButtonHTML("cedear")}`);
     }
     if (id.currency_mismatch) {
-      tags.push(`<span class="badge badge-warn">${id.currency} / ${id.quote_currency}</span>`);
+      tags.push(
+        `<span class="badge badge-warn">${id.currency} / ${id.quote_currency}</span>` +
+          infoButtonHTML("currency_mismatch")
+      );
     }
     box.insertAdjacentHTML(
       "beforeend",
@@ -122,10 +127,10 @@
     const s = data.summary;
     box.appendChild(
       summaryStrip([
-        ["ROIC promedio", formatValue(s.roic_avg, "pct")],
-        ["Tendencia ROIC", formatValue(s.roic_trend, "pct")],
-        ["Tendencia margen operativo", formatValue(s.operating_margin_trend, "pct")],
-        ["Tendencia margen neto", formatValue(s.net_margin_trend, "pct")],
+        [`ROIC promedio${infoButtonHTML("roic")}`, formatValue(s.roic_avg, "pct")],
+        [`Tendencia ROIC${infoButtonHTML("roic")}`, formatValue(s.roic_trend, "pct")],
+        [`Tendencia margen operativo${infoButtonHTML("operating_margin")}`, formatValue(s.operating_margin_trend, "pct")],
+        [`Tendencia margen neto${infoButtonHTML("net_margin")}`, formatValue(s.net_margin_trend, "pct")],
       ])
     );
     return box;
@@ -136,13 +141,13 @@
     box.appendChild(seriesTable(data.growth));
     const s = data.summary;
     const items = [
-      ["CAGR ingresos", formatValue(s.revenue_cagr, "pct")],
-      ["CAGR EPS diluido", formatValue(s.eps_cagr, "pct")],
-      ["CAGR FCF", formatValue(s.fcf_cagr, "pct")],
+      [`CAGR ingresos${infoButtonHTML("cagr_revenue")}`, formatValue(s.revenue_cagr, "pct")],
+      [`CAGR EPS diluido${infoButtonHTML("cagr_eps")}`, formatValue(s.eps_cagr, "pct")],
+      [`CAGR FCF${infoButtonHTML("cagr_fcf")}`, formatValue(s.fcf_cagr, "pct")],
     ];
     if (s.next_year_revenue_growth !== undefined) {
       items.push([
-        `Consenso próx. ejercicio (${s.analyst_count ?? "—"} analistas)`,
+        `Consenso próx. ejercicio (${s.analyst_count ?? "—"} analistas)${infoButtonHTML("analyst_consensus")}`,
         `ingresos ${formatValue(s.next_year_revenue_growth, "pct")} · beneficios ${formatValue(s.next_year_earnings_growth, "pct")}`,
       ]);
     }
@@ -173,7 +178,9 @@
     table.className = "data-table";
     table.innerHTML = `<thead><tr>
       <th>Múltiplo</th><th>Actual</th><th>Mediana</th><th>p25</th><th>p75</th>
-      <th>Percentil</th><th>vs mediana</th><th>Lectura</th>
+      <th>Percentil${infoButtonHTML("valuation_percentile")}</th>
+      <th>vs mediana${infoButtonHTML("valuation_vs_median")}</th>
+      <th>Lectura${infoButtonHTML("valuation_verdict")}</th>
     </tr></thead>`;
     const tbody = document.createElement("tbody");
     v.bands.forEach((b) => {
@@ -183,7 +190,7 @@
       const verdict = b.verdict ? `<span class="badge ${verdictClass}">${b.verdict}</span>` : "—";
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${b.label}</td>
+        <td>${b.label}${infoButtonHTML(b.metric)}</td>
         <td>${formatValue(b.current, b.format)}</td>
         <td>${formatValue(b.median, b.format)}</td>
         <td>${formatValue(b.p25, b.format)}</td>
@@ -212,15 +219,16 @@
       box.insertAdjacentHTML("beforeend", `<p class="empty-inline">Sin datos.</p>`);
       return box;
     }
-    const debtLabel = c.costo_de_deuda_ejercicio
-      ? `Costo de deuda (histórico) — ejercicio ${c.costo_de_deuda_ejercicio}`
-      : "Costo de deuda (histórico)";
+    const debtLabel =
+      (c.costo_de_deuda_ejercicio
+        ? `Costo de deuda (histórico) — ejercicio ${c.costo_de_deuda_ejercicio}`
+        : "Costo de deuda (histórico)") + infoButtonHTML("cost_of_debt");
     box.appendChild(
       summaryStrip([
-        ["Beta", formatValue(c.beta, "num")],
+        [`Beta${infoButtonHTML("beta")}`, formatValue(c.beta, "num")],
         [debtLabel, formatValue(c.costo_de_deuda, "pct")],
-        ["Tasa impositiva efectiva", formatValue(c.tasa_impositiva_efectiva, "pct")],
-        ["Peso deuda / equity", `${formatValue(c.peso_deuda, "pct")} / ${formatValue(c.peso_equity, "pct")}`],
+        [`Tasa impositiva efectiva${infoButtonHTML("effective_tax_rate")}`, formatValue(c.tasa_impositiva_efectiva, "pct")],
+        [`Peso deuda / equity${infoButtonHTML("capital_weights")}`, `${formatValue(c.peso_deuda, "pct")} / ${formatValue(c.peso_equity, "pct")}`],
         ["Market cap", formatValue(c.market_cap, "money")],
         ["Deuda total", formatValue(c.deuda_total, "money")],
       ])

@@ -38,6 +38,8 @@ STATIC_FILES = {
     "/app.js": "app.js",
     "/brief.js": "brief.js",
     "/format.js": "format.js",
+    "/glossary.js": "glossary.js",
+    "/info.js": "info.js",
     "/tabs.js": "tabs.js",
     "/styles.css": "styles.css",
 }
