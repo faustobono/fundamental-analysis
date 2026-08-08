@@ -19,7 +19,15 @@ const els = {
   results: $("#results"),
 };
 
+// Los mega-caps de mayor volumen/importancia de EE.UU. — el mismo universo
+// que se auto-corre al abrir la web (ver el final de este archivo). Sólo
+// EE.UU. a propósito: hoy los CEDEARs fallan en producción contra FMP con un
+// error de plan pago (HTTP 402, ver DECISIONS.md), así que meterlos acá haría
+// que la primera carga muestre "sin datos" para varias empresas.
+const TOP_VOLUME = "AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, JPM";
+
 const PRESETS = {
+  "Top volumen": TOP_VOLUME,
   "Tech US": "AAPL, MSFT, NVDA, AMD, INTC, GOOGL, META",
   "Bancos AR": "GGAL.BA, BMA.BA, BBAR.BA, SUPV.BA",
   "Energía": "XOM, CVX, YPFD.BA, VIST.BA, PAMP.BA",
@@ -324,5 +332,10 @@ Object.entries(PRESETS).forEach(([name, tickers]) => {
   els.presets.appendChild(button);
 });
 
-els.tickers.value = localStorage.getItem("tickers") ?? PRESETS["Mixto"];
+els.tickers.value = localStorage.getItem("tickers") ?? TOP_VOLUME;
 updateMethodInfo();
+
+// Auto-análisis al abrir: el objetivo es que la página ya tenga resultados
+// sin que haga falta escribir nada ni apretar "Analizar" — con los tickers
+// más importantes por default, o con la última búsqueda si ya usaste la web.
+runScreen();

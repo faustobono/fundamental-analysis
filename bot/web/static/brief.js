@@ -379,5 +379,8 @@
     els.presets.appendChild(button);
   });
 
-  els.ticker.value = localStorage.getItem("brief_ticker") ?? "";
+  // Auto-análisis al abrir, igual que el screener: la pestaña ya arranca con
+  // un informe cargado (AAPL por default) en vez de un formulario vacío.
+  els.ticker.value = localStorage.getItem("brief_ticker") ?? "AAPL";
+  run();
 })();

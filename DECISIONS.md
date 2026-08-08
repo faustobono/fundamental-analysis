@@ -59,6 +59,38 @@ resto del bot. Ninguno de los dos reemplaza un DCF ni el WACC: siguen sin
 calcularse automáticamente, por el mismo motivo de siempre (supuestos de
 mercado).
 
+## CEDEARs/ADRs: el `.BA` nunca cambia un número
+
+`resolve_symbol()` resuelve el ticker local (`.BA`) al subyacente en EE.UU.
+*antes* de traer cualquier dato — precio incluido, no sólo los estados
+contables. Por eso el análisis de un CEDEAR mapeado (ej. `PAMP.BA`) y el de
+su subyacente (`PAM`) son idénticos número por número: la única diferencia es
+la etiqueta y el warning "es un CEDEAR". El bot nunca usa el precio ni el
+ratio de conversión de la cotización local en BYMA — el objetivo es siempre
+el fundamental de la empresa, no el instrumento local. El `.BA` importa por
+otro motivo: activa la búsqueda en `cedear_map.json`, que hace falta cuando
+el ticker local no coincide con el del subyacente (la mayoría de los casos,
+ej. `PAMP` → `PAM`); sin él, esos tickers no se encuentran.
+
+**Pendiente:** hoy los CEDEARs fallan en producción contra FMP con `HTTP 402`
+(plan pago requerido para sus estados contables en el free tier). Confirmado
+que no es un problema del pipeline: local con yfinance funcionan bien. Por
+eso el universo default de auto-carga de la web (ver más abajo) es sólo
+EE.UU. por ahora.
+
+## Auto-carga de la web
+
+Las dos pestañas de la web se auto-analizan al abrir, sin que el usuario
+tenga que escribir nada ni apretar "Analizar" — pedido explícito del usuario
+("quiero que automáticamente tenga ya el análisis de lo más importante y con
+mayor volumen"). El screener arranca con un preset de mega-caps de EE.UU.
+(`AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, JPM`, la lista más líquida e
+importante del mercado) y el análisis profundo con AAPL; si el usuario ya
+usó la web antes, se auto-corre su última búsqueda (`localStorage`) en vez
+del default. El universo default es sólo EE.UU. porque los CEDEARs
+argentinos hoy fallan en producción (ver el punto anterior) — meterlos acá
+mostraría "sin datos" en la primera carga de cualquier visitante.
+
 ## Subagentes de Claude Code
 
 `.claude/agents/` guarda definiciones de subagentes específicos para este

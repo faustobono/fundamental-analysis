@@ -13,6 +13,10 @@ Proyecto: bot de análisis fundamental en Python.
   renombró de `fundamental-analysis` a `fundscan`; el dominio viejo
   `fundamental-analysis-eight.vercel.app` puede seguir resolviendo por un
   tiempo pero no es el canónico).
+- **Pendiente conocido:** los CEDEARs/ADRs argentinos (GGAL.BA, YPFD.BA,
+  BMA.BA, etc.) fallan en producción contra FMP con `HTTP 402` (plan pago
+  requerido). Funciona bien local con yfinance. Ver "Limitaciones conocidas"
+  en `README.md` y el punto 5 de "Última integración" más abajo.
 
 ## Última integración
 
@@ -108,6 +112,44 @@ nuevo, se renombró el proyecto de Vercel y se desplegó todo a producción.
    viejo. Verificado post-fix: `/api/health`, `/api/screen` (AAPL+MSFT) y
    `/api/brief?ticker=AAPL` responden 200 sin auth en `fundscan.vercel.app`,
    con `financial_strength` presente (Altman ≈11.9 "segura", Piotroski 8/9).
+
+Sesión de Claude Code (siguiente, a pedido del usuario tras probar la web
+desplegada): probando `fundscan.vercel.app` con más tickers se descubrió que
+los CEDEARs argentinos (GGAL.BA, YPFD.BA, BMA.BA) fallan en producción con
+`FMP: HTTP 402` — confirmado que no es un bug del pipeline (local con
+yfinance, GGAL.BA/PAMP.BA traen todo bien); es que el free tier de FMP no
+cubre los estados contables de estas empresas. Diagnóstico comparando
+`PAM` (subyacente directo) vs `PAMP.BA` (CEDEAR mapeado): el output es
+idéntico salvo la etiqueta y el warning — porque `resolve_symbol()` resuelve
+el ticker al subyacente *antes* de traer nada, precio incluido, así que el
+`.BA` nunca cambia un número, sólo decide si el ticker se resuelve y si se
+avisa que es un CEDEAR. Sin ese sufijo, tickers como `PAMP` (que no coincide
+con el subyacente `PAM`) no encuentran nada (404).
+
+A partir de ahí, el usuario pidió que la web ya tenga el análisis de las
+empresas más importantes/con mayor volumen al abrir, sin tocar nada. Se
+preguntó alcance (¿sólo screener, o también brief?) y universo (¿EE.UU. y
+Argentina, sabiendo que los CEDEARs fallan hoy en prod?) antes de tocar
+código. Elegido: ambas pestañas se auto-analizan al cargar, y el universo
+default es sólo EE.UU. por ahora (el problema de FMP con CEDEARs sigue sin
+resolver). Cambios, sólo frontend (sin tocar Python):
+
+- `bot/web/static/app.js`: nueva constante `TOP_VOLUME` (`AAPL, MSFT, NVDA,
+  GOOGL, AMZN, META, TSLA, JPM`), nuevo preset "Top volumen" (primero en la
+  lista), default de la caja de texto pasó de `PRESETS["Mixto"]` (que tiene
+  un CEDEAR) a `TOP_VOLUME`, y se agregó `runScreen()` al final del arranque
+  para que corra sola al cargar — con la última búsqueda del usuario
+  (`localStorage`) si ya usó la web antes, o con el default si es la primera
+  vez.
+- `bot/web/static/brief.js`: default del ticker pasó de `""` a `"AAPL"`, y se
+  agregó `run()` al final del arranque, mismo criterio.
+- Las dos pestañas cargan sus datos en paralelo al abrir la página aunque
+  sólo una esté visible (son dos `<main>` con `hidden` alternado, no un
+  router) — así al cambiar de pestaña ya está resuelta, no hay que esperar.
+- Verificado en navegador con `localStorage.clear()` (simulando primera
+  visita): screener trae las 8 empresas de `TOP_VOLUME` con datos, brief
+  trae AAPL con las 8 secciones, sin errores de consola. 319 tests Python
+  sin cambios (feature 100% frontend).
 
 ## Protocolo de reanudación
 

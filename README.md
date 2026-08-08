@@ -122,6 +122,14 @@ Detalles de la UI que valen la pena:
   de 800% de ancho.
 - **Los faltantes se muestran en gris con "sin dato"** en vez de esconderse: que a un
   banco le falte ROIC es información, no un hueco.
+- **Las dos pestañas se auto-analizan al abrir la web**, sin tocar nada: el
+  screener corre de entrada con los mega-caps de mayor volumen de EE.UU.
+  (`AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, JPM` — preset "Top volumen") y
+  el análisis profundo arranca mostrando el informe de AAPL. Si ya usaste la
+  web antes, se auto-corre tu última búsqueda en vez del default (queda en
+  `localStorage`). Sólo EE.UU. en el default a propósito: los CEDEARs
+  argentinos hoy fallan en producción contra FMP con un error de plan pago
+  (ver "Limitaciones conocidas").
 
 ### Informe de una empresa
 
@@ -260,7 +268,7 @@ EBIT, así que ahí queda en `None` — y está bien, el ratio no aplica.
 .venv/bin/python -m pytest
 ```
 
-293 tests, sin red. El fetcher recibe una `ticker_factory` inyectable (yfinance) o un
+319 tests, sin red. El fetcher recibe una `ticker_factory` inyectable (yfinance) o un
 cliente HTTP inyectable (FMP), y el cache un reloj inyectable, así que todo el pipeline
 —fetcher → normalizer → scorer → analysis → web— se testea de punta a punta con dobles,
 para las dos fuentes.
@@ -277,6 +285,12 @@ para las dos fuentes.
   corrida. Es de a un ticker, así que molesta poco, pero está sin cachear.
 - **La conversión de moneda pide un `FxProvider` explícito.** No hay tipo de cambio
   hardcodeado a propósito: quedaría viejo y mentiría en silencio.
+- **Los CEDEARs/ADRs argentinos fallan hoy en producción con FMP** (`HTTP 402`,
+  plan pago requerido para los estados contables de estas empresas en el free
+  tier). Confirmado con GGAL.BA, YPFD.BA y BMA.BA contra `fundscan.vercel.app`.
+  El pipeline en sí funciona bien — corriendo local con yfinance (el default
+  fuera de Vercel) trae todo correcto — así que es una limitación del plan de
+  FMP en este hosting puntual, no un bug del bot. Sin resolver todavía.
 - **No hay backtesting.** El screener dice cómo se ve una empresa hoy contra sus
   peers, no si ese criterio hubiera funcionado.
 - Esto es una herramienta de estudio, no una recomendación de inversión.

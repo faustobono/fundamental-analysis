@@ -32,7 +32,14 @@
       fuente real. `snapshot.source` no servía para esto: se pisa a `"byma"` en
       el screener (vía `BymaAdapter`), aunque el brief no pasa por ahí hoy.
 - [ ] Probar el screener con un universo suficientemente grande por sector.
-- [ ] Verificar el comportamiento de CEDEARs/ADRs usando FMP y `cedear_map.json`.
+- [x] Verificar el comportamiento de CEDEARs/ADRs usando FMP y `cedear_map.json`
+      — **resultado negativo**: fallan en producción con `FMP: HTTP 402`
+      (plan pago requerido). Confirmado con GGAL.BA, YPFD.BA, BMA.BA contra
+      `fundscan.vercel.app`. El pipeline funciona bien (local con yfinance
+      trae todo correcto), así que es una limitación del free tier de FMP,
+      no un bug. Ver "Limitaciones conocidas" en `README.md`.
+- [ ] Arreglar el punto anterior: agregar fallback a yfinance para CEDEARs
+      cuando FMP devuelva 402, o evaluar otro proveedor para esos tickers.
 - [ ] Confirmar límites, errores y consumo del free tier de FMP en el hosting elegido.
 - [x] Documentar la URL y el procedimiento de actualización una vez publicado
       (dominio nuevo: `fundscan.vercel.app`, ver `DECISIONS.md`).
@@ -43,6 +50,12 @@
 - [x] Pase de optimización/refactor con un subagente nuevo
       (`.claude/agents/code-optimizer.md`). Ver `kickoff.md`.
 - [x] Renombrar el proyecto de Vercel a un dominio más corto: `fundscan`.
+- [x] Auto-cargar el análisis de las empresas más importantes/mayor volumen
+      al abrir la web, sin acción del usuario. Screener arranca con
+      `TOP_VOLUME` (mega-caps de EE.UU.: AAPL, MSFT, NVDA, GOOGL, AMZN, META,
+      TSLA, JPM) o la última búsqueda guardada; brief arranca con AAPL. Sólo
+      EE.UU. en el default a propósito, por el punto de CEDEARs/FMP de
+      arriba. Ver `kickoff.md`.
 
 ## Baja prioridad
 
