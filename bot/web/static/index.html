@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Screener fundamental</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <h1>Screener fundamental</h1>
+    <p class="tagline">Ranking por sector &middot; nunca cross-sector</p>
+    <nav class="tabs" id="tabs">
+      <button type="button" class="tab" data-view="screener" aria-current="page">Screener</button>
+      <button type="button" class="tab" data-view="brief">Análisis profundo</button>
+    </nav>
+  </div>
+</header>
+
+<main id="view-screener" class="view">
+  <form id="controls" class="panel">
+    <div class="field field-wide">
+      <label for="tickers">Universo</label>
+      <textarea id="tickers" rows="3" spellcheck="false"
+        placeholder="AAPL, MSFT, NVDA, GGAL.BA&#10;Separá con comas, espacios o saltos de línea."></textarea>
+      <div class="presets" id="presets"></div>
+    </div>
+
+    <div class="field">
+      <label for="method">Método</label>
+      <select id="method">
+        <option value="percentile">Percentil</option>
+        <option value="zscore">Z-score</option>
+      </select>
+      <small id="method-hint">Robusto a outliers</small>
+    </div>
+
+    <div class="field">
+      <label for="topn">Mostrar</label>
+      <select id="topn">
+        <option value="0">Todas</option>
+        <option value="3">Top 3</option>
+        <option value="5" selected>Top 5</option>
+        <option value="10">Top 10</option>
+      </select>
+      <small>por sector</small>
+    </div>
+
+    <div class="field">
+      <label for="cache">Cache</label>
+      <label class="toggle">
+        <input type="checkbox" id="cache" checked>
+        <span>Usar cache</span>
+      </label>
+      <small>TTL 24hs</small>
+    </div>
+
+    <div class="field field-action">
+      <button type="submit" id="run" class="primary">Analizar</button>
+    </div>
+  </form>
+
+  <div id="status" class="status" hidden></div>
+  <div id="results"></div>
+</main>
+
+<main id="view-brief" class="view" hidden>
+  <form id="brief-controls" class="panel panel-brief">
+    <div class="field field-wide">
+      <label for="brief-ticker">Ticker</label>
+      <input id="brief-ticker" type="text" spellcheck="false" autocomplete="off"
+        placeholder="AAPL, GGAL.BA, MSFT...">
+      <div class="presets" id="brief-presets"></div>
+    </div>
+
+    <div class="field">
+      <label for="brief-years">Ejercicios</label>
+      <select id="brief-years">
+        <option value="3">3</option>
+        <option value="5" selected>5</option>
+        <option value="7">7</option>
+      </select>
+      <small>yfinance rara vez da más de 5</small>
+    </div>
+
+    <div class="field field-action">
+      <button type="submit" id="brief-run" class="primary">Analizar</button>
+    </div>
+  </form>
+
+  <div id="brief-status" class="status" hidden></div>
+  <div id="brief-results"></div>
+</main>
+
+<template id="tpl-sector">
+  <section class="sector">
+    <div class="sector-head">
+      <h2 class="sector-name"></h2>
+      <span class="sector-count"></span>
+      <span class="badge badge-warn sector-thin" hidden>pocos peers</span>
+    </div>
+    <div class="cards"></div>
+    <div class="unrankable" hidden>
+      <h3>Sin rankear</h3>
+      <ul></ul>
+    </div>
+  </section>
+</template>
+
+<template id="tpl-card">
+  <article class="card">
+    <button class="card-head" type="button" aria-expanded="false">
+      <span class="rank"></span>
+      <span class="identity">
+        <span class="ticker"></span>
+        <span class="company"></span>
+      </span>
+      <span class="composite">
+        <span class="composite-value"></span>
+        <span class="composite-label">puntaje</span>
+      </span>
+      <span class="chevron" aria-hidden="true"></span>
+    </button>
+    <div class="metrics"></div>
+    <div class="card-body" hidden></div>
+  </article>
+</template>
+
+<script src="/format.js"></script>
+<script src="/app.js"></script>
+<script src="/brief.js"></script>
+<script src="/tabs.js"></script>
+</body>
+</html>

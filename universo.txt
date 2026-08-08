@@ -1,0 +1,20 @@
+# Universo de ejemplo para el modo batch:
+#   python -m bot screener --tickers-file universo.txt --top-n 3
+
+# Technology
+AAPL
+MSFT
+NVDA
+AMD
+INTC
+
+# Financial Services
+JPM
+BAC
+GGAL.BA     # ADR: se resuelve a GGAL en NASDAQ
+BMA.BA
+
+# Energy
+XOM
+CVX
+YPFD.BA     # ADR: se resuelve a YPF en NYSE
