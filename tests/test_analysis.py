@@ -20,6 +20,7 @@ from bot.analysis.valuation import (
     multiples_history,
     period_public_at,
 )
+from bot.analysis.profile import build_profile
 
 from .conftest import frame
 
@@ -288,3 +289,19 @@ class TestPerfilCompleto:
         assert profile is not None
         assert set(profile.bands) == {"pe", "ev_ebitda", "ev_revenue", "fcf_yield", "pb", "ps"}
         assert profile.lag_days == REPORTING_LAG_DAYS
+
+
+class TestCompanyProfileProvider:
+    """Simétrico al de FMP en test_fmp.py: el default de yfinance no debe
+    acusar a FMP por lo que no trae, igual que FMP no debe acusar a yfinance.
+    `CompanyProfile.provider` es el campo que hace esa distinción posible.
+    """
+
+    def test_build_profile_registra_yfinance_como_proveedor(self, healthy_factory):
+        profile = build_profile("TEST", healthy_factory)
+        assert profile.provider == "yfinance"
+
+    def test_los_gaps_acusan_al_proveedor_correcto(self, healthy_factory):
+        gaps = build_profile("TEST", healthy_factory).gaps()
+        assert any("yfinance" in g.lower() and "segmentos" in g.lower() for g in gaps)
+        assert not any("fmp" in g.lower() for g in gaps)

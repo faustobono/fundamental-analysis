@@ -172,4 +172,5 @@ def build_profile_fmp(
         current_price=f.num(profile, f.PRICE),
         current_shares=history.latest.shares_outstanding if history.latest else None,
         growth=_growth(client, ticker, profile),
+        provider="fmp",
     )

@@ -8,7 +8,7 @@ Proyecto: bot de análisis fundamental en Python.
 - La integración con Financial Modeling Prep (FMP) fue validada contra la API real usando AAPL.
 - `yfinance` sigue siendo el proveedor por defecto.
 - FMP funciona mediante `FMP_API_KEY` y se selecciona con `BOT_PROVIDER=fmp` o `--provider fmp`.
-- La suite actual tiene `298 tests` y todos pasan sin red.
+- La suite actual tiene `302 tests` y todos pasan sin red.
 - Desplegado en Vercel: `https://fundamental-analysis-eight.vercel.app`.
 
 ## Última integración
@@ -16,6 +16,14 @@ Proyecto: bot de análisis fundamental en Python.
 El último bloque de cambios incluye la corrección de la fuente declarada por el
 brief, el runtime de Vercel, la configuración de rutas, el cache efímero de
 serverless y la documentación operativa. La producción fue validada con FMP.
+
+Sesión de Claude Code (después del deploy): se detectó contra producción
+(`/api/brief?ticker=AAPL` con `BOT_PROVIDER=fmp`) que `CompanyProfile.gaps()`
+declaraba "Segmentos de ingreso: yfinance no los publica." sin importar el
+proveedor real. Se agregó `CompanyProfile.provider` (seteado en
+`assemble_profile`, tanto desde `build_profile` como desde `build_profile_fmp`)
+y se usa en `gaps()` y en `render_data_block`. No commiteado todavía — sin
+push ni deploy, según el protocolo de `AGENTS.md`. 302 tests, todos pasan.
 
 ## Protocolo de reanudación
 

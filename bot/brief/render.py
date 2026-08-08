@@ -242,7 +242,11 @@ def render_gaps(profile: CompanyProfile) -> str:
 
 def render_data_block(profile: CompanyProfile) -> str:
     """El bloque DATOS completo que se le pasa al modelo."""
-    source = profile.snapshot.source
+    # `profile.provider` y no `profile.snapshot.source`: hoy coinciden (el
+    # brief no pasa por `BymaAdapter`, que es lo único que pisa `.source` a
+    # "byma" en el screener), pero `provider` es el campo pensado para esto —
+    # no depende de que ningún cambio futuro empiece a rutear el brief por ahí.
+    source = profile.provider
     if source == "fmp":
         source_lines = [
             "- FMP (Financial Modeling Prep): estados contables anuales, precios mensuales,",

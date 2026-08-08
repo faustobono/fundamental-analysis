@@ -107,6 +107,10 @@ class CompanyProfile:
     cost_of_capital: Optional[CostOfCapitalInputs] = None
     growth: Optional[GrowthOutlook] = None
     warnings: tuple[str, ...] = ()
+    provider: str = "yfinance"
+    """Quién trajo los datos. No es `snapshot.source`: ese campo se pisa a
+    "byma" para un CEDEAR/ADR, y acá se necesita saber la fuente real de los
+    datos (yfinance o FMP) para no acusar al proveedor equivocado en `gaps()`."""
 
     @property
     def ticker(self) -> str:
@@ -119,7 +123,7 @@ class CompanyProfile:
     def gaps(self) -> list[str]:
         """Lo que el informe pide y esta fuente no puede dar. Se declara, no se rellena."""
         missing = [
-            "Segmentos de ingreso: yfinance no los publica.",
+            f"Segmentos de ingreso: el adapter de {self.provider} no los trae.",
             "Moat / ventaja competitiva: no es un dato contable.",
         ]
         if self.years < 5:
@@ -185,6 +189,7 @@ def assemble_profile(
     current_shares: Optional[float],
     growth: Optional["GrowthOutlook"] = None,
     extra_warnings: Optional[list[str]] = None,
+    provider: str = "yfinance",
 ) -> CompanyProfile:
     """Arma el `CompanyProfile` desde piezas ya traídas, sin saber el proveedor.
 
@@ -217,6 +222,7 @@ def assemble_profile(
         cost_of_capital=_cost_of_capital(history, beta=beta, market_cap=market_cap),
         growth=growth,
         warnings=tuple(dict.fromkeys(warnings)),
+        provider=provider,
     )
 
 

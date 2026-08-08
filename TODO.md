@@ -13,6 +13,12 @@
 
 ## Media prioridad
 
+- [x] Corregir `gaps()` de `CompanyProfile`: acusaba a yfinance de no publicar
+      segmentos incluso corriendo con `--provider fmp` (mensaje hardcodeado,
+      reproducido contra producción con AAPL). Se agregó `CompanyProfile.provider`
+      y se usa tanto en `gaps()` como en `render_data_block` para declarar la
+      fuente real. `snapshot.source` no servía para esto: se pisa a `"byma"` en
+      el screener (vía `BymaAdapter`), aunque el brief no pasa por ahí hoy.
 - [ ] Probar el screener con un universo suficientemente grande por sector.
 - [ ] Verificar el comportamiento de CEDEARs/ADRs usando FMP y `cedear_map.json`.
 - [ ] Confirmar límites, errores y consumo del free tier de FMP en el hosting elegido.

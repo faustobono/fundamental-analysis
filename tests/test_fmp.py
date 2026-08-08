@@ -319,3 +319,15 @@ class TestDeep:
         output = render_data_block(profile)
         assert "FMP (Financial Modeling Prep)" in output
         assert "yfinance (Yahoo Finance)" not in output
+
+    def test_provider_queda_registrado_en_el_profile(self, profile):
+        # Bug real detectado contra producción: con --provider fmp, un ticker
+        # directo (sin CEDEAR de por medio) mostraba "Segmentos de ingreso:
+        # yfinance no los publica." — el mensaje estaba hardcodeado y acusaba
+        # al proveedor equivocado sin importar cuál se usó realmente.
+        assert profile.provider == "fmp"
+
+    def test_los_gaps_acusan_al_proveedor_correcto(self, profile):
+        gaps = profile.gaps()
+        assert any("fmp" in g.lower() and "segmentos" in g.lower() for g in gaps)
+        assert not any("yfinance" in g.lower() for g in gaps)
