@@ -165,10 +165,20 @@ daltonismo y en impresión.
 
 Otras reglas que salieron de aplicar la guía de visualización de datos:
 
-- **Las barras de percentil son una rampa secuencial de un solo tono**: el riel
-  es un paso claro del *mismo* azul que el relleno, no un gris, así el estado se
-  lee a lo largo de toda la barra. Un percentil bajo usa un paso más claro de esa
-  misma rampa, no rojo: estar abajo en el sector no es una alarma.
+- **Las barras de percentil son una rampa neutra, no de color.** Primero se
+  hicieron azul-sobre-azul, siguiendo el spec de meters ("el riel es un paso del
+  mismo tono, así el estado se lee a lo largo de toda la barra"). Fue un error de
+  aplicación: ese spec describe un meter de *severidad*, donde el relleno cambia
+  de color según el estado y teñir el riel hace que el estado se lea entero. Acá
+  el relleno es de un solo tono a propósito, así que no hay estado en el color —
+  el riel teñido no aportaba nada y sí quitaba legibilidad: una fila en el
+  percentil 0 mostraba una barra azul de punta a punta y de un vistazo parecía
+  llena. En neutro, la longitud es la única codificación (que es lo correcto: el
+  tono era redundante) y todo el color queda libre para lo semántico. Un
+  percentil bajo usa un paso más claro de la misma rampa neutra, no rojo: estar
+  abajo en el sector no es una alarma.
+- **La barra va a ancho fijo, no a `1fr`.** Estirada a toda la fila se leía como
+  una franja y le ganaba en peso al número, que es el dato que se viene a mirar.
 - **Geometría de la marca**: cuadrada en la base, 4px redondeada en la punta del
   dato. Una píldora redondeada de los dos lados miente sobre dónde empieza.
 - **Cifras proporcionales en los valores sueltos**; `tabular-nums` sólo donde los

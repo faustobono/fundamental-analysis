@@ -55,9 +55,10 @@
   --bad: #a4302a;
   --bad-wash: #fbeceb;
 
-  /* Rampa secuencial del meter (percentil). Un solo tono, riel → relleno. */
-  --meter-track: #cde2fb;
-  --meter-fill: #2a78d6;
+  /* Meter de percentil: rampa neutra. Ver la nota larga en `.bar-track`. */
+  --meter-track: #e5e6e2;
+  --meter-fill: #3a424e;
+  --meter-fill-low: #a9afb8;
 
   --radius: 10px;
   --radius-sm: 7px;
@@ -95,8 +96,9 @@
     --bad: #e88b81;
     --bad-wash: #33201d;
 
-    --meter-track: #0d366b;
-    --meter-fill: #3987e5;
+    --meter-track: #272c34;
+    --meter-fill: #98a2b1;
+    --meter-fill-low: #4e5663;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
     --shadow-lg: 0 16px 40px -12px rgba(0, 0, 0, 0.65);
@@ -507,11 +509,14 @@ button.primary:disabled { opacity: 0.45; cursor: progress; filter: none; }
   gap: 9px;
 }
 
+/* La barra va a ancho fijo, no a `1fr`: estirada a toda la fila se leía como
+   una franja y le ganaba en peso al número, que es el dato que se viene a
+   mirar. El sobrante lo absorbe la etiqueta. */
 .metric {
   display: grid;
-  grid-template-columns: minmax(140px, 1.25fr) 74px 1fr 58px;
+  grid-template-columns: minmax(120px, 1fr) 84px 150px 54px;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   font-size: 12.5px;
 }
 
@@ -536,8 +541,19 @@ button.primary:disabled { opacity: 0.45; cursor: progress; filter: none; }
   font-variant-numeric: tabular-nums;
 }
 
-/* Meter: riel y relleno son dos pasos del MISMO tono, así el estado se lee a
-   lo largo de toda la barra en vez de sólo en la parte llena. */
+/* Meter de percentil, en rampa NEUTRA y no en azul-sobre-azul.
+ *
+ * El spec de meters pide que el riel sea un paso del mismo tono del relleno
+ * "para que el estado se lea a lo largo de toda la barra" — pero eso describe
+ * un meter de *severidad*, donde el relleno cambia de color (acento → atención
+ * → peligro) y teñir el riel hace que el estado se lea entero. Acá el relleno
+ * es de un solo tono a propósito (un percentil bajo dentro del sector no es
+ * una alarma): no hay estado en el color, así que el riel teñido no aporta
+ * nada y sí quita legibilidad — con riel azul, una fila p0 mostraba una barra
+ * azul de punta a punta y de un vistazo parecía llena.
+ *
+ * La longitud ya codifica la magnitud; el tono sería redundante. En neutro,
+ * además, todo el color de la página queda disponible para lo semántico. */
 .bar-track {
   display: block;
   height: 5px;
@@ -547,7 +563,7 @@ button.primary:disabled { opacity: 0.45; cursor: progress; filter: none; }
 }
 
 /* `display: block` es obligatorio: es un <span>, y un inline ignora el width.
-   Cuadrado en la base, 4px redondeado en la punta del dato. */
+   Cuadrado en la base, redondeado sólo en la punta del dato. */
 .bar-fill {
   display: block;
   height: 100%;
@@ -556,9 +572,9 @@ button.primary:disabled { opacity: 0.45; cursor: progress; filter: none; }
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Percentil bajo: un paso más claro de la misma rampa, no un gris y no un
-   rojo — un percentil bajo dentro del sector no es una alarma. */
-.bar-fill.low { background: color-mix(in srgb, var(--meter-fill) 42%, var(--meter-track)); }
+/* Percentil bajo: un paso más claro de la misma rampa neutra. No rojo: estar
+   abajo en el sector no es una alarma. */
+.bar-fill.low { background: var(--meter-fill-low); }
 
 .metric-pct {
   font-size: 11.5px;
