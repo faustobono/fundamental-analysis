@@ -149,17 +149,43 @@ mostraría "sin datos" en la primera carga de cualquier visitante.
 
 ## Diseño de la interfaz
 
-La jerarquía la hacen la tipografía y el espacio, no las cajas. Se evita el
-marco-dentro-de-marco (panel con borde > tarjeta con borde > detalle con
-fondo): las secciones del informe se separan con aire y una línea de un píxel,
-y el peso visual queda para los números, que es lo que se viene a mirar. Todas
-las cifras usan `tabular-nums`: en una columna de números, que el 1 ocupe menos
-que el 8 rompe la alineación y se lee peor.
+Concepto: **tearsheet**. Es la hoja de análisis de un analista, no un tablero de
+tarjetas. La estructura la dan reglas de 1px y la alineación a un canto común
+(una canaleta izquierda de 56px que sostiene rangos y rótulos), no cajas
+apiladas. Un sector es UNA hoja con las empresas como filas — no N tarjetas
+flotando, que con 100 empresas en pantalla era puro ruido de marcos.
+
+**El acento no es un color semántico.** Es la regla que más cambió el resultado.
+Antes el verde era el botón, la barra de percentil, el badge "barato" y el
+"segura": cuando un color significa todo, no significa nada. Ahora el cromo
+(botones, foco, enlaces) es un azul pizarra que no aparece nunca sobre un dato,
+y verde / ámbar / rojo quedan reservados a bueno / atención / malo. Los estados
+siempre viajan con etiqueta, nunca color solo — es lo que los hace legibles con
+daltonismo y en impresión.
+
+Otras reglas que salieron de aplicar la guía de visualización de datos:
+
+- **Las barras de percentil son una rampa secuencial de un solo tono**: el riel
+  es un paso claro del *mismo* azul que el relleno, no un gris, así el estado se
+  lee a lo largo de toda la barra. Un percentil bajo usa un paso más claro de esa
+  misma rampa, no rojo: estar abajo en el sector no es una alarma.
+- **Geometría de la marca**: cuadrada en la base, 4px redondeada en la punta del
+  dato. Una píldora redondeada de los dos lados miente sobre dónde empieza.
+- **Cifras proporcionales en los valores sueltos**; `tabular-nums` sólo donde los
+  dígitos se alinean en columna (tablas, filas de métricas). El ancho fijo en un
+  titular hace que un "1.000" se vea suelto.
+- **La sans lleva todos los números**, incluidos los grandes. La mono queda
+  reservada a identificadores (tickers, códigos), donde el ancho fijo es
+  funcional y es el vocabulario del rubro — no decoración.
+- **El texto no se tiñe con el color del dato.** En el checklist de Piotroski la
+  marca ✓/✗ lleva el color y el texto queda en tinta: un renglón entero en rojo
+  se lee como error, no como "no cumple".
 
 Sigue sin haber build step, framework ni fuentes externas — una hoja de estilos
 y el stack de fuentes del sistema. El tema oscuro no es un agregado: los tokens
-de color se definen para los dos modos y `color-scheme` hace que los controles
-nativos (select, checkbox, scrollbar) acompañen.
+se definen para los dos modos y `color-scheme` hace que los controles nativos
+acompañen. Los contrastes se verificaron con WCAG contra las dos superficies
+reales, y la rampa del meter, monótona en luminancia — computados, no a ojo.
 
 ## Subagentes de Claude Code
 

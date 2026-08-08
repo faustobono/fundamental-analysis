@@ -251,6 +251,36 @@ camino (problema de entorno, ya había pasado antes en esta sesión), así que l
 parte final se verificó por geometría y estilos computados en vez de
 screenshots — más preciso, de hecho.
 
+Sesión de Claude Code (siguiente). El usuario rechazó el rediseño anterior
+("parece muy app barata") y pidió rehacerlo cargando skills de diseño. Se
+cargaron `dataviz` y `artifact-design`, y el diagnóstico salió de ahí, no del
+gusto: (a) el acento verde era **también** el color semántico — la guía es
+explícita en que el color de estado va separado del acento y no cuenta como
+acento; con el verde siendo botón, barra, "barato" y "segura" a la vez, el color
+no comunicaba nada; (b) el resultado caía en dos de los looks que la guía marca
+como genéricos ("near-black con un pop verde", "rounded cards en todos lados").
+
+Se rehízo `styles.css` entero bajo el concepto **tearsheet** (ver `DECISIONS.md`
+para el criterio completo). Cambios de fondo: acento azul pizarra separado de los
+semánticos; una hoja por sector con filas en vez de baraja de tarjetas; canaleta
+izquierda de 56px como canto común; rampa secuencial de un tono para las barras
+(riel = paso claro del mismo azul, no gris); cifras proporcionales en valores
+sueltos y `tabular-nums` sólo en columnas; la sans lleva los números y la mono
+queda para identificadores; el texto no se tiñe con el color del dato.
+
+Sobre el validador de paletas: se corrió `scripts/validate_palette.js` y **dio
+FAIL, pero por mal uso mío** — su alcance es "categorical palettes only" y le
+pasé una mezcla de acento + rampa + estados como si fueran series. El chequeo que
+sí correspondía (contraste WCAG contra las dos superficies reales, y monotonía de
+la rampa del meter) pasa en los 15 pares. Vale recordarlo si alguien vuelve a
+correr el validador sobre esta paleta y ve rojo: no aplica tal cual.
+
+Verificado: 354 tests, ruff limpio, y en navegador light y dark a 1280px y 375px
+— sin overflow horizontal, tablas anchas scrolleando adentro, hero sin desbordar
+en mobile, sin errores de consola. Nota de entorno: los screenshots no siguen el
+scroll hecho por JS (salen en blanco), así que lo que está fuera del primer
+viewport se verificó por geometría y estilos computados.
+
 ## Protocolo de reanudación
 
 Codex, Claude Code y OpenCode comparten el mismo contexto versionado. Al iniciar
