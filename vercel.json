@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index?__path=/$1"
+    }
+  ],
+  "functions": {
+    "api/**/*.py": {
+      "excludeFiles": "{tests/**,graphify-out/**,.venv/**}"
+    }
+  }
+}

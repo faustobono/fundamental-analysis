@@ -6,3 +6,6 @@ __pycache__/
 *.db
 resultado.json
 .ruff_cache/
+graphify-out/
+.vercel
+.env*

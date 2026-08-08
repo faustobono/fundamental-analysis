@@ -242,6 +242,18 @@ def render_gaps(profile: CompanyProfile) -> str:
 
 def render_data_block(profile: CompanyProfile) -> str:
     """El bloque DATOS completo que se le pasa al modelo."""
+    source = profile.snapshot.source
+    if source == "fmp":
+        source_lines = [
+            "- FMP (Financial Modeling Prep): estados contables anuales, precios mensuales,",
+            "  consenso de analistas cuando está disponible.",
+        ]
+    else:
+        source_lines = [
+            "- yfinance (Yahoo Finance): estados contables anuales, precios mensuales,",
+            "  consenso de analistas.",
+        ]
+
     return "\n".join(
         [
             "=" * 70,
@@ -271,8 +283,7 @@ def render_data_block(profile: CompanyProfile) -> str:
             render_gaps(profile),
             "## Fuente",
             "",
-            "- yfinance (Yahoo Finance): estados contables anuales, precios mensuales,",
-            "  consenso de analistas.",
+            *source_lines,
             "- Todos los ratios fueron calculados por el bot desde las líneas contables,",
             "  no tomados precalculados de la fuente.",
             "",

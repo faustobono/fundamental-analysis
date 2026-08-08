@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,7 +12,8 @@ from bot.models import FundamentalSnapshot
 from bot.scorer.metrics import Method
 from bot.scorer.sector_scorer import SectorScorer
 from bot.web.api import _bar, _score_payload, _snapshot_payload, parse_tickers
-from bot.web.server import MAX_TICKERS, STATIC_FILES, STATIC_DIR
+from bot.web.server import MAX_TICKERS, STATIC_FILES, STATIC_DIR, provider_for
+from api.index import public_path
 
 
 def snap(ticker, sector="Technology", **metrics) -> FundamentalSnapshot:
@@ -135,6 +137,21 @@ class TestPayload:
 
 
 class TestServidor:
+    def test_restaura_la_ruta_publica_reescrita_por_vercel(self):
+        assert public_path("/api/index?__path=/api/health") == "/api/health"
+
+    def test_restaura_la_ruta_y_preserva_sus_parametros(self):
+        assert public_path("/api/index?__path=/api/screen&tickers=AAPL%2CMSFT") == (
+            "/api/screen?tickers=AAPL%2CMSFT"
+        )
+
+    def test_usa_el_provider_inyectado_por_el_servidor_local(self):
+        assert provider_for(SimpleNamespace(provider="fmp")) == "fmp"
+
+    def test_usa_el_provider_del_entorno_si_el_runtime_no_lo_inyecta(self, monkeypatch):
+        monkeypatch.setenv("BOT_PROVIDER", "fmp")
+        assert provider_for(SimpleNamespace()) == "fmp"
+
     def test_los_estaticos_existen(self):
         for filename in set(STATIC_FILES.values()):
             assert (STATIC_DIR / filename).is_file(), filename

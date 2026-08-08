@@ -17,6 +17,7 @@ import pytest
 from bot.fetcher.fmp.adapter import FmpAdapter
 from bot.fetcher.fmp.client import FmpClient
 from bot.fetcher.fmp.deep import build_profile_fmp
+from bot.brief.render import render_data_block
 from bot.models import NoDataError, UpstreamError
 
 # --- una empresa coherente a través de todos los endpoints ------------------
@@ -313,3 +314,8 @@ class TestDeep:
     def test_sin_precios_no_hay_valuacion(self):
         profile = build_profile_fmp("TEST", FakeFmpClient({"historical-price-eod/full": []}))
         assert profile.valuation is None
+
+    def test_el_informe_declara_fmp_como_fuente(self, profile):
+        output = render_data_block(profile)
+        assert "FMP (Financial Modeling Prep)" in output
+        assert "yfinance (Yahoo Finance)" not in output

@@ -1,7 +1,8 @@
 # Bot de análisis fundamental
 
 Screener que trae fundamentals, los normaliza y **rankea por sector**.
-Determinístico y offline: sin API paga, sin llamadas a ningún LLM.
+Determinístico: no depende de ningún LLM; puede usar FMP con API key para operar
+en producción.
 
 ```
 fetcher/     yfinance + FMP + BYMA (CEDEARs/ADRs) + cache SQLite con TTL
@@ -46,8 +47,7 @@ falta el statement crudo, el precio y el sector.
 
 ### Validar FMP contra la API real (smoke-test)
 
-El adapter está testeado contra fixtures, pero conviene confirmar que los nombres de
-campo de FMP coinciden con los que usa tu key:
+La integración fue validada contra la API real con AAPL. Para repetir la prueba:
 
 ```bash
 FMP_API_KEY=tu_key python -m bot brief AAPL --provider fmp --data-only
@@ -60,6 +60,8 @@ Qué mirar en la salida:
 - **Dividend yield** → verificá que la magnitud tenga sentido (~0.5–3%). Si da 4x,
   FMP reporta el dividendo trimestral donde el bot asume anual (está anotado en el
   código).
+
+El informe identifica la fuente utilizada (`FMP` o `yfinance`) en la sección `Fuente`.
 
 ## Setup
 
@@ -90,6 +92,28 @@ ratios, la escala del negocio y los warnings de calidad del dato.
 El servidor bindea a `127.0.0.1`: sólo tu máquina. Sirve una allowlist fija de tres
 archivos estáticos, así que no hay path traversal posible. Tope de 150 tickers por
 corrida para que un pegado accidental no dispare cientos de fetches.
+
+### Vercel
+
+La app se puede desplegar como una función Python de Vercel. El entry point
+`api/index.py` reutiliza el mismo handler que la web local y `vercel.json` reescribe
+las rutas públicas al handler, por lo que `/`, `/api/screen`, `/api/brief` y
+`/api/health` se conservan.
+
+En el proyecto de Vercel configurá estas variables de entorno (Production,
+Preview y Development):
+
+```text
+BOT_PROVIDER=fmp
+FMP_API_KEY=tu_key_de_fmp
+```
+
+`FMP_API_KEY` es un secreto del servidor: nunca la pongas en el frontend ni en
+`vercel.json`. La función no conserva el cache SQLite entre invocaciones, así que
+la cuota de FMP debe considerarse al exponer la app públicamente.
+
+La producción actual está disponible en
+[`fundamental-analysis-eight.vercel.app`](https://fundamental-analysis-eight.vercel.app).
 
 Detalles de la UI que valen la pena:
 
@@ -236,7 +260,7 @@ EBIT, así que ahí queda en `None` — y está bien, el ratio no aplica.
 .venv/bin/python -m pytest
 ```
 
-292 tests, sin red. El fetcher recibe una `ticker_factory` inyectable (yfinance) o un
+293 tests, sin red. El fetcher recibe una `ticker_factory` inyectable (yfinance) o un
 cliente HTTP inyectable (FMP), y el cache un reloj inyectable, así que todo el pipeline
 —fetcher → normalizer → scorer → analysis → web— se testea de punta a punta con dobles,
 para las dos fuentes.

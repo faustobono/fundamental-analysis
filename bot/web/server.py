@@ -21,6 +21,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from ..cli.main import parse_metrics
+from ..config import default_provider
 from ..models import FetchError
 from ..scorer.metrics import Method
 from .api import parse_tickers, run_screen
@@ -44,6 +45,16 @@ STATIC_FILES = {
 #: Tope defensivo: el universo lo escribe una persona en un textarea, no un
 #: proceso. Sin esto, un pegado accidental dispara cientos de fetches.
 MAX_TICKERS = 150
+
+
+def provider_for(server: object) -> str:
+    """Devuelve el proveedor fijado por el servidor o el configurado por entorno.
+
+    El servidor local inyecta ``provider`` al crear ``ThreadingHTTPServer``.
+    En Vercel, en cambio, el runtime instancia directamente el handler y no
+    expone ese atributo; allí se usa ``BOT_PROVIDER``.
+    """
+    return getattr(server, "provider", default_provider())
 
 
 class ScreenerHandler(BaseHTTPRequestHandler):
@@ -90,7 +101,7 @@ class ScreenerHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             return self._send_error(HTTPStatus.BAD_REQUEST, f"parámetro inválido: {exc}")
 
-        provider = self.server.provider  # type: ignore[attr-defined]
+        provider = provider_for(self.server)
         logger.info(
             "screen: %d ticker(s), provider=%s, method=%s, cache=%s",
             len(tickers), provider, method.value, use_cache,
@@ -131,7 +142,7 @@ class ScreenerHandler(BaseHTTPRequestHandler):
         # que el screener, y esta ruta no se pega en cada arranque del server.
         from .brief_api import run_brief
 
-        provider = self.server.provider  # type: ignore[attr-defined]
+        provider = provider_for(self.server)
         logger.info("brief: %s (%d años, provider=%s)", ticker, years, provider)
         try:
             payload = run_brief(ticker, years=years, provider=provider)

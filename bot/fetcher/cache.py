@@ -11,6 +11,7 @@ snapshot, para que un snapshot restaurado de un export viejo no se dé por fresc
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -22,7 +23,18 @@ from ..models import SCHEMA_VERSION, FundamentalSnapshot
 logger = logging.getLogger(__name__)
 
 DEFAULT_TTL_HOURS = 24.0
-DEFAULT_CACHE_PATH = Path.home() / ".cache" / "fundamental-bot" / "snapshots.db"
+
+
+def default_cache_path() -> Path:
+    """Devuelve una ubicación escribible para el cache según el runtime."""
+    if os.environ.get("VERCEL"):
+        # El filesystem de Vercel fuera de /tmp es de solo lectura. Este cache
+        # es un acelerador, no una fuente de verdad, así que puede ser efímero.
+        return Path("/tmp") / "fundamental-bot" / "snapshots.db"
+    return Path.home() / ".cache" / "fundamental-bot" / "snapshots.db"
+
+
+DEFAULT_CACHE_PATH = default_cache_path()
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS snapshots (

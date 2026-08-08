@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from bot.fetcher.cache import NullCache, SnapshotCache
+from bot.fetcher.cache import NullCache, SnapshotCache, default_cache_path
 from bot.models import SCHEMA_VERSION, FundamentalSnapshot
 
 
@@ -46,6 +46,10 @@ def snapshot(ticker="TEST", **kwargs) -> FundamentalSnapshot:
 
 
 class TestBasico:
+    def test_el_cache_de_vercel_usa_tmp(self, monkeypatch):
+        monkeypatch.setenv("VERCEL", "1")
+        assert default_cache_path().as_posix() == "/tmp/fundamental-bot/snapshots.db"
+
     def test_miss_devuelve_none(self, cache):
         assert cache.get("NADA") is None
 
