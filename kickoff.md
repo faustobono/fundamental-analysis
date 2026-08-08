@@ -8,15 +8,15 @@ Proyecto: bot de análisis fundamental en Python.
 - La integración con Financial Modeling Prep (FMP) fue validada contra la API real usando AAPL.
 - `yfinance` sigue siendo el proveedor por defecto.
 - FMP funciona mediante `FMP_API_KEY` y se selecciona con `BOT_PROVIDER=fmp` o `--provider fmp`.
-- La suite actual tiene `319 tests` y todos pasan sin red.
+- La suite actual tiene `329 tests` y todos pasan sin red.
 - Desplegado en Vercel: `https://fundscan.vercel.app` (el proyecto se
   renombró de `fundamental-analysis` a `fundscan`; el dominio viejo
   `fundamental-analysis-eight.vercel.app` puede seguir resolviendo por un
   tiempo pero no es el canónico).
-- **Pendiente conocido:** los CEDEARs/ADRs argentinos (GGAL.BA, YPFD.BA,
-  BMA.BA, etc.) fallan en producción contra FMP con `HTTP 402` (plan pago
-  requerido). Funciona bien local con yfinance. Ver "Limitaciones conocidas"
-  en `README.md` y el punto 5 de "Última integración" más abajo.
+- Los CEDEARs/ADRs argentinos ya no fallan en producción: cuando FMP exige
+  plan pago (`HTTP 402`), el bot reintenta con yfinance automáticamente.
+  Verificado contra producción (GGAL.BA, YPFD.BA, BMA.BA, SUPV.BA, BBAR.BA).
+  Ver el bloque más abajo, al final de "Última integración".
 
 ## Última integración
 
@@ -150,6 +150,56 @@ resolver). Cambios, sólo frontend (sin tocar Python):
   visita): screener trae las 8 empresas de `TOP_VOLUME` con datos, brief
   trae AAPL con las 8 secciones, sin errores de consola. 319 tests Python
   sin cambios (feature 100% frontend).
+
+Sesión de Claude Code (siguiente, a pedido del usuario: "arreglá el 402 de
+FMP para los CEDEARs"). Diagnóstico primero: sin `FMP_API_KEY` local para
+probar contra la API real, se usó `vercel env pull` (el valor viene
+redactado por el CLI, así que sólo sirvió para confirmar que la var existe,
+no para leerla) y finalmente se verificó directamente contra producción y
+contra un deploy de preview — el de preview tiene una `FMP_API_KEY` inválida
+en su configuración (Preview ≠ Production en Vercel; pendiente aparte, sin
+relación con este fix). El fix:
+
+- `bot/models.py`: `FetchError`/`UpstreamError` ganaron un campo
+  `status_code: Optional[int]` (default `None`) para que el resto del
+  pipeline pueda distinguir "FMP pide plan pago (402)" de otros errores
+  (429 rate limit, 401 key inválida, etc.) sin parsear el mensaje.
+- `bot/fetcher/fmp/client.py`: `FmpClient.get()` setea `status_code=exc.code`
+  en el `UpstreamError` que lanza ante un `HTTPError`, y agrega el hint
+  "este dato exige un plan pago de FMP" para 402.
+- `bot/fetcher/service.py` (camino del screener): nueva clase
+  `_FmpWithYfinanceFallback`, que envuelve el adapter de FMP — si devuelve
+  402, reintenta con yfinance y marca el snapshot resultante con un warning
+  (`FundamentalSnapshot.with_warning`). Se usa como `primary` en
+  `_build_adapters("fmp")`, así que cubre tanto tickers directos como
+  CEDEARs (que la pasan como `underlying_adapter` de `BymaAdapter`). Otros
+  códigos de error (429, 401, etc.) NO caen al fallback — sólo 402, porque
+  esos otros sí son errores reales que no tiene sentido esconder.
+- `bot/analysis/profile.py` (camino del brief): mismo criterio en
+  `company_profile()` — si `build_profile_fmp()` tira un 402, reintenta con
+  `build_profile()` (yfinance) y agrega el mismo warning al
+  `CompanyProfile` resultante vía `dataclasses.replace()`. Si el fallback
+  también falla, el error final menciona las dos fuentes que se probaron.
+- Si el fallback funciona, `profile.provider`/`snapshot.source` quedan en
+  `"yfinance"` (o `"byma"` para un CEDEAR, que ya lo pisa igual) — reflejan
+  la fuente real, no lo que pedía `BOT_PROVIDER`.
+- 10 tests nuevos (`tests/test_fmp.py`, `tests/test_service.py`,
+  `tests/test_analysis.py`), todos con dobles/mocks — sin red, como el
+  resto de la suite. 329 tests en total, ruff limpio.
+- **Verificado contra producción con datos reales** (la única forma de
+  probar el 402 real, sin key local): GGAL.BA, YPFD.BA, BMA.BA, SUPV.BA y
+  BBAR.BA ahora responden bien tanto en `/api/screen` como en `/api/brief`,
+  con el warning de fallback visible. Control sobre tickers de EE.UU.
+  (AAPL, MSFT, NVDA, JPM) sin cambios, sin ese warning. Se preguntó al
+  usuario antes de desplegar a producción (no había pedido explícito de
+  deploy/push para este fix puntual) — confirmó, y confirmó también el
+  commit + push después de ver los resultados reales.
+- **Importante:** el fallback depende de que yfinance no esté bloqueando la
+  IP de Vercel en el momento de la consulta. Hoy funcionó — pero la
+  documentación previa de este proyecto advertía que yfinance sí puede
+  bloquear IPs de datacenter, así que esto es "mejor que fallar siempre",
+  no una garantía permanente. Si vuelve a romperse, revisar primero si
+  yfinance está bloqueando, no asumir que el fix dejó de andar.
 
 ## Protocolo de reanudación
 

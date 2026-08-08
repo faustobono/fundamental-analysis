@@ -83,13 +83,17 @@ class FmpClient:
         try:
             body = self._http_get(url)
         except urllib.error.HTTPError as exc:
-            # 401/403 = key inválida; 429 = límite diario (250/día en free).
+            # 401/403 = key inválida; 429 = límite diario (250/día en free);
+            # 402 = el dato pedido exige un plan pago (confirmado con estados
+            # contables de CEDEARs/ADRs como GGAL, YPF, BMA — no está en el
+            # free tier aunque coticen en NASDAQ/NYSE).
             hint = {
                 401: "API key inválida",
+                402: "este dato exige un plan pago de FMP",
                 403: "acceso denegado (¿key sin permiso para este endpoint?)",
                 429: "límite de requests alcanzado (250/día en el free tier)",
             }.get(exc.code, f"HTTP {exc.code}")
-            raise UpstreamError(ticker or endpoint, f"FMP: {hint}") from exc
+            raise UpstreamError(ticker or endpoint, f"FMP: {hint}", status_code=exc.code) from exc
         except urllib.error.URLError as exc:
             raise UpstreamError(ticker or endpoint, f"no se pudo conectar con FMP: {exc.reason}") from exc
 

@@ -72,11 +72,21 @@ otro motivo: activa la búsqueda en `cedear_map.json`, que hace falta cuando
 el ticker local no coincide con el del subyacente (la mayoría de los casos,
 ej. `PAMP` → `PAM`); sin él, esos tickers no se encuentran.
 
-**Pendiente:** hoy los CEDEARs fallan en producción contra FMP con `HTTP 402`
-(plan pago requerido para sus estados contables en el free tier). Confirmado
-que no es un problema del pipeline: local con yfinance funcionan bien. Por
-eso el universo default de auto-carga de la web (ver más abajo) es sólo
-EE.UU. por ahora.
+Los CEDEARs exigían plan pago en FMP (`HTTP 402` para sus estados contables
+en el free tier, aunque coticen en NASDAQ/NYSE) — confirmado que no era un
+problema del pipeline, local con yfinance funcionaban bien. Se agregó un
+fallback automático a yfinance cuando FMP devuelve 402 (`bot/fetcher/
+service.py::_FmpWithYfinanceFallback` para el screener, la misma lógica en
+`bot/analysis/profile.py::company_profile()` para el brief), declarado como
+warning en vez de silencioso. Otros errores de FMP (429, 401, etc.) NO caen
+al fallback — sólo 402, que es específicamente "hace falta plan pago", no
+un problema transitorio. Verificado contra producción con GGAL.BA, YPFD.BA,
+BMA.BA, SUPV.BA y BBAR.BA. **Este fallback no es una garantía**: depende de
+que yfinance no esté bloqueando la IP de Vercel en ese momento (ver la
+decisión de Hosting más abajo) — es "mejor que fallar siempre", no una
+solución permanente. El universo default de auto-carga de la web (ver más
+abajo) sigue siendo sólo EE.UU. por ahora, para no depender de ese
+fallback en la primera impresión de cualquier visitante.
 
 ## Auto-carga de la web
 

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import pytest
 
 from bot.fetcher.cache import NullCache
-from bot.fetcher.service import FundamentalsService
+from bot.fetcher.service import FundamentalsService, _FmpWithYfinanceFallback
 from bot.models import FundamentalSnapshot, NoDataError, UnmappedTickerError, UpstreamError
 
 
@@ -197,6 +197,70 @@ class TestBatchResiliente:
         result = FundamentalsService(NullCache(), yf, FakeAdapter({})).get_many(["A", "B"])
         assert result.snapshots == []
         assert len(result.failures) == 2
+
+
+class FakeSource:
+    """Como `FakeAdapter`, pero acepta `requested_as` — hace falta para poder
+    usarse como primario/fallback de `_FmpWithYfinanceFallback`, que reenvía
+    ese kwarg tal cual llega (lo necesita `BymaAdapter` para resolver CEDEARs)."""
+
+    def __init__(self, responses: dict[str, object]):
+        self._responses = responses
+        self.calls: list[tuple[str, object]] = []
+
+    def fetch(self, ticker: str, *, requested_as=None) -> FundamentalSnapshot:
+        self.calls.append((ticker, requested_as))
+        response = self._responses.get(ticker)
+        if response is None:
+            raise NoDataError(ticker, "sin datos en el doble")
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
+class TestFmpFallback:
+    """`_FmpWithYfinanceFallback`: FMP con un 402 (plan pago requerido) no
+    debería tirar abajo el ticker entero si yfinance puede traerlo igual —
+    hallazgo real contra producción con CEDEARs (GGAL, YPF, BMA)."""
+
+    def test_402_cae_a_yfinance(self):
+        primary = FakeSource({"GGAL": UpstreamError("GGAL", "FMP: plan pago", status_code=402)})
+        fallback = FakeSource({"GGAL": snapshot("GGAL")})
+        result = _FmpWithYfinanceFallback(primary, fallback).fetch("GGAL")
+        assert result.ticker == "GGAL"
+        assert any("plan pago" in w for w in result.warnings)
+
+    def test_error_sin_402_no_cae_al_fallback(self):
+        # 429 (rate limit) o cualquier otro código no es "hace falta plan
+        # pago" — no tiene sentido reintentar con otra fuente, y esconder el
+        # error real detrás de un fallback silencioso sería peor.
+        primary = FakeSource({"AAPL": UpstreamError("AAPL", "límite alcanzado", status_code=429)})
+        fallback = FakeSource({"AAPL": snapshot("AAPL")})
+        with pytest.raises(UpstreamError, match="límite alcanzado"):
+            _FmpWithYfinanceFallback(primary, fallback).fetch("AAPL")
+        assert fallback.calls == []
+
+    def test_si_el_fallback_tambien_falla_el_error_explica_las_dos_fuentes(self):
+        primary = FakeSource({"GGAL": UpstreamError("GGAL", "FMP: plan pago", status_code=402)})
+        fallback = FakeSource({"GGAL": UpstreamError("GGAL", "bloqueado (datacenter IP)")})
+        with pytest.raises(UpstreamError, match="plan pago.*yfinance también falló"):
+            _FmpWithYfinanceFallback(primary, fallback).fetch("GGAL")
+
+    def test_no_cae_al_fallback_si_el_primario_funciona(self):
+        primary = FakeSource({"AAPL": snapshot("AAPL")})
+        fallback = FakeSource({})
+        result = _FmpWithYfinanceFallback(primary, fallback).fetch("AAPL")
+        assert result.ticker == "AAPL"
+        assert fallback.calls == []
+
+    def test_reenvia_requested_as_a_las_dos_fuentes(self):
+        # Así es como lo llama `BymaAdapter`: ticker = subyacente, requested_as
+        # = ticker local del CEDEAR.
+        primary = FakeSource({"GGAL": UpstreamError("GGAL", "plan pago", status_code=402)})
+        fallback = FakeSource({"GGAL": snapshot("GGAL")})
+        _FmpWithYfinanceFallback(primary, fallback).fetch("GGAL", requested_as="GGAL.BA")
+        assert primary.calls == [("GGAL", "GGAL.BA")]
+        assert fallback.calls == [("GGAL", "GGAL.BA")]
 
 
 class TestAgrupamiento:

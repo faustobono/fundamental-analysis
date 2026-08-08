@@ -172,6 +172,22 @@ class TestClient:
         with pytest.raises(UpstreamError, match="límite"):
             client.get("profile", ticker="AAPL")
 
+    def test_http_402_exige_plan_pago_y_guarda_el_status_code(self):
+        # Hallazgo real contra producción: FMP devuelve 402 para los estados
+        # contables de varios CEDEARs/ADRs (GGAL, YPF, BMA) aunque coticen en
+        # NASDAQ/NYSE. El `status_code` en el error es lo que le permite al
+        # resto del pipeline (bot/fetcher/service.py, bot/analysis/profile.py)
+        # distinguir este caso puntual y reintentar con yfinance.
+        import urllib.error
+
+        def http_get(url):
+            raise urllib.error.HTTPError(url, 402, "Payment Required", {}, None)
+
+        client = FmpClient(api_key="X", http_get=http_get)
+        with pytest.raises(UpstreamError, match="plan pago") as excinfo:
+            client.get("income-statement", ticker="GGAL")
+        assert excinfo.value.status_code == 402
+
     def test_json_corrupto_es_upstream_error(self):
         client = FmpClient(api_key="X", http_get=lambda url: "no soy json{")
         with pytest.raises(UpstreamError, match="no es JSON"):

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 
+import bot.analysis.profile as profile_mod
 from bot.analysis.series import (
     AnnualPeriod,
     FinancialHistory,
@@ -20,8 +21,9 @@ from bot.analysis.valuation import (
     multiples_history,
     period_public_at,
 )
-from bot.analysis.profile import build_profile
+from bot.analysis.profile import CompanyProfile, build_profile, company_profile
 from bot.analysis.scores import altman_z_score, piotroski_f_score
+from bot.models import FundamentalSnapshot, NoDataError, UpstreamError
 
 from .conftest import frame
 
@@ -411,3 +413,70 @@ class TestCompanyProfileProvider:
         assert fs.piotroski is not None
         assert fs.piotroski.max_score == 3
         assert fs.piotroski.score == 3
+
+
+def _fake_fmp_profile(provider: str = "yfinance") -> CompanyProfile:
+    snapshot = FundamentalSnapshot(
+        ticker="GGAL",
+        source_ticker="GGAL",
+        source="yfinance",
+        as_of=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    return CompanyProfile(snapshot=snapshot, history=FinancialHistory(), provider=provider)
+
+
+class TestCompanyProfileFmpFallback:
+    """`company_profile(provider="fmp")`: un 402 (plan pago requerido) no
+    debería tirar abajo el brief entero si yfinance puede traer el ticker —
+    hallazgo real contra producción con CEDEARs (GGAL, YPF, BMA)."""
+
+    def test_402_cae_a_yfinance_y_deja_constancia_en_warnings(self, monkeypatch):
+        def fake_fmp(ticker, **kwargs):
+            raise UpstreamError(ticker, "FMP: plan pago", status_code=402)
+
+        monkeypatch.setattr("bot.fetcher.fmp.build_profile_fmp", fake_fmp)
+        monkeypatch.setattr(profile_mod, "build_profile", lambda *a, **k: _fake_fmp_profile())
+
+        result = company_profile("GGAL", provider="fmp")
+        assert result.provider == "yfinance"
+        assert any("plan pago" in w for w in result.warnings)
+
+    def test_error_sin_402_no_cae_al_fallback(self, monkeypatch):
+        def fake_fmp(ticker, **kwargs):
+            raise UpstreamError(ticker, "FMP: límite alcanzado", status_code=429)
+
+        monkeypatch.setattr("bot.fetcher.fmp.build_profile_fmp", fake_fmp)
+        called = []
+        monkeypatch.setattr(
+            profile_mod, "build_profile", lambda *a, **k: called.append(1) or _fake_fmp_profile()
+        )
+
+        with pytest.raises(UpstreamError, match="límite alcanzado"):
+            company_profile("AAPL", provider="fmp")
+        assert called == []
+
+    def test_si_el_fallback_tambien_falla_el_error_explica_las_dos_fuentes(self, monkeypatch):
+        def fake_fmp(ticker, **kwargs):
+            raise UpstreamError(ticker, "FMP: plan pago", status_code=402)
+
+        def fake_yf(*a, **k):
+            raise NoDataError("GGAL", "yfinance sin datos tampoco")
+
+        monkeypatch.setattr("bot.fetcher.fmp.build_profile_fmp", fake_fmp)
+        monkeypatch.setattr(profile_mod, "build_profile", fake_yf)
+
+        with pytest.raises(UpstreamError, match="plan pago.*yfinance también falló"):
+            company_profile("GGAL", provider="fmp")
+
+    def test_sin_error_no_toca_el_fallback(self, monkeypatch):
+        monkeypatch.setattr(
+            "bot.fetcher.fmp.build_profile_fmp", lambda ticker, **kwargs: _fake_fmp_profile("fmp")
+        )
+        called = []
+        monkeypatch.setattr(
+            profile_mod, "build_profile", lambda *a, **k: called.append(1) or _fake_fmp_profile()
+        )
+
+        result = company_profile("AAPL", provider="fmp")
+        assert result.provider == "fmp"
+        assert called == []

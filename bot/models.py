@@ -60,8 +60,13 @@ MONETARY_FIELDS = STATEMENT_MONETARY_FIELDS + QUOTE_MONETARY_FIELDS
 class FetchError(Exception):
     """Error recuperable de un adapter: el batch loguea y sigue."""
 
-    def __init__(self, ticker: str, message: str):
+    def __init__(self, ticker: str, message: str, *, status_code: Optional[int] = None):
         self.ticker = ticker
+        self.status_code = status_code
+        """Código HTTP del proveedor, si el error vino de una respuesta HTTP.
+        `None` para errores sin código (timeouts, JSON corrupto, etc.). Deja
+        que quien atrape el error distinga, por ejemplo, un 402 (plan pago
+        requerido) de un 429 (límite de requests) sin parsear el mensaje."""
         super().__init__(f"[{ticker}] {message}")
 
 

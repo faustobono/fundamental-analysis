@@ -268,7 +268,7 @@ EBIT, así que ahí queda en `None` — y está bien, el ratio no aplica.
 .venv/bin/python -m pytest
 ```
 
-319 tests, sin red. El fetcher recibe una `ticker_factory` inyectable (yfinance) o un
+329 tests, sin red. El fetcher recibe una `ticker_factory` inyectable (yfinance) o un
 cliente HTTP inyectable (FMP), y el cache un reloj inyectable, así que todo el pipeline
 —fetcher → normalizer → scorer → analysis → web— se testea de punta a punta con dobles,
 para las dos fuentes.
@@ -285,12 +285,15 @@ para las dos fuentes.
   corrida. Es de a un ticker, así que molesta poco, pero está sin cachear.
 - **La conversión de moneda pide un `FxProvider` explícito.** No hay tipo de cambio
   hardcodeado a propósito: quedaría viejo y mentiría en silencio.
-- **Los CEDEARs/ADRs argentinos fallan hoy en producción con FMP** (`HTTP 402`,
-  plan pago requerido para los estados contables de estas empresas en el free
-  tier). Confirmado con GGAL.BA, YPFD.BA y BMA.BA contra `fundscan.vercel.app`.
-  El pipeline en sí funciona bien — corriendo local con yfinance (el default
-  fuera de Vercel) trae todo correcto — así que es una limitación del plan de
-  FMP en este hosting puntual, no un bug del bot. Sin resolver todavía.
+- **Los CEDEARs/ADRs argentinos exigen plan pago en FMP** (`HTTP 402` para
+  los estados contables de estas empresas en el free tier, aunque coticen en
+  NASDAQ/NYSE). Ya no rompe el análisis: `bot/fetcher/service.py` y
+  `bot/analysis/profile.py` reintentan con yfinance cuando FMP devuelve 402,
+  y lo declaran en `warnings` ("FMP exige un plan pago para este ticker...").
+  Verificado contra producción con GGAL.BA, YPFD.BA, BMA.BA, SUPV.BA y
+  BBAR.BA (screener y brief). El fallback depende de que yfinance no esté
+  bloqueando la IP de Vercel en ese momento — no es una garantía, es "mejor
+  que fallar siempre".
 - **No hay backtesting.** El screener dice cómo se ve una empresa hoy contra sus
   peers, no si ese criterio hubiera funcionado.
 - Esto es una herramienta de estudio, no una recomendación de inversión.

@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Iterable, Optional, Protocol
 
-from ..models import FetchError, FundamentalSnapshot
+from ..models import FetchError, FundamentalSnapshot, UpstreamError
 from ..normalizer.normalize import normalize
 from ..normalizer.fx import FxProvider
 from .byma_adapter import BymaAdapter, is_byma_ticker
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class SnapshotSource(Protocol):
-    def fetch(self, ticker: str) -> FundamentalSnapshot: ...
+    def fetch(self, ticker: str, *, requested_as: Optional[str] = None) -> FundamentalSnapshot: ...
 
 
 class SnapshotStore(Protocol):
@@ -132,6 +132,44 @@ PROVIDERS = ("yfinance", "fmp")
 DEFAULT_PROVIDER = "yfinance"
 
 
+class _FmpWithYfinanceFallback:
+    """FMP como fuente primaria; si un ticker puntual devuelve HTTP 402 (plan
+    pago requerido), reintenta con yfinance en vez de fallar el ticker entero.
+
+    Confirmado contra producción: FMP exige un plan pago para los estados
+    contables de varios CEDEARs/ADRs (GGAL, YPF, BMA), aunque coticen en
+    NASDAQ/NYSE — no es un bug del pipeline, es una restricción del free
+    tier. yfinance puede bloquear IPs de datacenter en la nube, así que este
+    fallback no garantiza éxito ahí — pero nunca empeora el resultado (si
+    también falla, el error final sigue siendo claro) y localmente resuelve
+    el caso limpio.
+    """
+
+    def __init__(self, primary: SnapshotSource, fallback: Optional[SnapshotSource] = None):
+        self._primary = primary
+        self._fallback = fallback or YFinanceAdapter()
+
+    def fetch(self, ticker: str, *, requested_as: Optional[str] = None) -> FundamentalSnapshot:
+        try:
+            return self._primary.fetch(ticker, requested_as=requested_as)
+        except UpstreamError as exc:
+            if exc.status_code != 402:
+                raise
+            logger.info("%s: FMP exige plan pago (402), reintento con yfinance", ticker)
+            try:
+                snapshot = self._fallback.fetch(ticker, requested_as=requested_as)
+            except FetchError as fallback_exc:
+                raise UpstreamError(
+                    ticker,
+                    "FMP exige un plan pago para este ticker (402) y el fallback a "
+                    f"yfinance también falló: {fallback_exc}",
+                ) from fallback_exc
+            return snapshot.with_warning(
+                "FMP exige un plan pago para este ticker (HTTP 402); se usó "
+                "yfinance como alternativa para poder traer los datos."
+            )
+
+
 def _build_adapters(provider: str) -> tuple[SnapshotSource, SnapshotSource]:
     """Devuelve (adapter primario, adapter BYMA) según el proveedor.
 
@@ -147,7 +185,7 @@ def _build_adapters(provider: str) -> tuple[SnapshotSource, SnapshotSource]:
         from .fmp import FmpAdapter, FmpClient
 
         client = FmpClient()
-        primary = FmpAdapter(client)
+        primary = _FmpWithYfinanceFallback(FmpAdapter(client))
         return primary, BymaAdapter(underlying_adapter=primary)
 
     primary = YFinanceAdapter()

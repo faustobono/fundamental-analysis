@@ -33,13 +33,16 @@
       el screener (vía `BymaAdapter`), aunque el brief no pasa por ahí hoy.
 - [ ] Probar el screener con un universo suficientemente grande por sector.
 - [x] Verificar el comportamiento de CEDEARs/ADRs usando FMP y `cedear_map.json`
-      — **resultado negativo**: fallan en producción con `FMP: HTTP 402`
+      — **resultado negativo**: fallaban en producción con `FMP: HTTP 402`
       (plan pago requerido). Confirmado con GGAL.BA, YPFD.BA, BMA.BA contra
-      `fundscan.vercel.app`. El pipeline funciona bien (local con yfinance
-      trae todo correcto), así que es una limitación del free tier de FMP,
-      no un bug. Ver "Limitaciones conocidas" en `README.md`.
-- [ ] Arreglar el punto anterior: agregar fallback a yfinance para CEDEARs
-      cuando FMP devuelva 402, o evaluar otro proveedor para esos tickers.
+      `fundscan.vercel.app`. El pipeline funcionaba bien (local con yfinance
+      traía todo correcto), era una limitación del free tier de FMP, no un
+      bug. Arreglado, ver el punto siguiente.
+- [x] Arreglar el 402 de FMP para CEDEARs/ADRs: fallback automático a
+      yfinance cuando FMP devuelve 402, en `bot/fetcher/service.py`
+      (screener) y `bot/analysis/profile.py` (brief). Declarado en
+      `warnings`, no silencioso. Verificado contra producción con GGAL.BA,
+      YPFD.BA, BMA.BA, SUPV.BA, BBAR.BA. Ver `kickoff.md`.
 - [ ] Confirmar límites, errores y consumo del free tier de FMP en el hosting elegido.
 - [x] Documentar la URL y el procedimiento de actualización una vez publicado
       (dominio nuevo: `fundscan.vercel.app`, ver `DECISIONS.md`).

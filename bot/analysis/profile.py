@@ -16,13 +16,13 @@ arme arriba, con supuestos explícitos y marcados.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any, Optional
 
 from ..fetcher.deep import DeepData, fetch_deep
 from ..fetcher.yfinance_adapter import DEFAULT_TAX_RATE, TickerFactory, YFinanceAdapter, _default_ticker_factory, _info_value
-from ..models import FundamentalSnapshot
+from ..models import FetchError, FundamentalSnapshot, UpstreamError
 from ..normalizer.normalize import normalize
 from .scores import AltmanResult, PiotroskiResult, altman_z_score, piotroski_f_score
 from .series import FinancialHistory, build_history, latest_with
@@ -307,7 +307,30 @@ def company_profile(
     if provider == "fmp":
         from ..fetcher.fmp import build_profile_fmp
 
-        return build_profile_fmp(ticker, requested_as=requested_as, max_years=max_years)
+        try:
+            return build_profile_fmp(ticker, requested_as=requested_as, max_years=max_years)
+        except UpstreamError as exc:
+            if exc.status_code != 402:
+                raise
+            # FMP exige un plan pago para los estados contables de este
+            # ticker (confirmado con CEDEARs/ADRs como GGAL, YPF, BMA). No es
+            # un bug: reintentar con yfinance, y si eso también falla (puede
+            # pasar en la nube, donde yfinance bloquea IPs de datacenter),
+            # dejar un error que explique las dos fuentes que se probaron.
+            logger.info("%s: FMP exige plan pago (402), reintento con yfinance", ticker)
+            try:
+                fallback = build_profile(ticker, requested_as=requested_as, max_years=max_years)
+            except FetchError as fallback_exc:
+                raise UpstreamError(
+                    ticker,
+                    "FMP exige un plan pago para este ticker (402) y el fallback a "
+                    f"yfinance también falló: {fallback_exc}",
+                ) from fallback_exc
+            note = (
+                "FMP exige un plan pago para este ticker (HTTP 402); se usó "
+                "yfinance como alternativa para poder traer los datos."
+            )
+            return replace(fallback, warnings=tuple(dict.fromkeys((*fallback.warnings, note))))
     return build_profile(ticker, requested_as=requested_as, max_years=max_years)
 
 
