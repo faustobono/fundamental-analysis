@@ -88,12 +88,26 @@ nuevo, se renombró el proyecto de Vercel y se desplegó todo a producción.
    verde antes y después.
 3. **Dominio de Vercel.** El proyecto se renombró de `fundamental-analysis`
    a `fundscan` (`vercel project rename`). El alias corto
-   `fundscan.vercel.app` se confirma libre (`DEPLOYMENT_NOT_FOUND` antes del
-   rename) pero sólo se asigna a un deploy nuevo — quedó pendiente del
-   `vercel --prod` de este mismo cambio.
+   `fundscan.vercel.app` se confirmó libre (`DEPLOYMENT_NOT_FOUND` antes del
+   rename), pero renombrar el proyecto no reasigna solo el dominio: hizo
+   falta un `vercel --prod` nuevo y un `vercel alias set` explícito para
+   apuntar `fundscan.vercel.app` al deploy. Ese mismo `vercel --prod` volvió
+   a aliasear automáticamente `fundamental-analysis-eight.vercel.app` al
+   nuevo deploy (quedó como alias secundario, sirve la versión actual, pero
+   ya no es el dominio canónico).
 4. **Deploy.** Commit y push explícitamente autorizados por el usuario para
    esta tanda (a diferencia de las tres tandas anteriores de la sesión,
-   donde se commiteaba pero no se pusheaba salvo pedido explícito).
+   donde se commiteaba pero no se pusheaba salvo pedido explícito). Al
+   desplegar, `fundscan.vercel.app` quedó atrás de la protección SSO de
+   Vercel (`ssoProtection: all_except_custom_domains` en la config del
+   proyecto — por algún motivo el alias viejo había quedado exceptuado y el
+   nuevo no) devolviendo 302 a `vercel.com/sso-api` en vez de la app. Se
+   preguntó al usuario antes de tocar una config de seguridad de la cuenta;
+   confirmó desactivar SSO (`vercel project protection disable fundscan
+   --sso`) porque la app es pública a propósito, igual que con el dominio
+   viejo. Verificado post-fix: `/api/health`, `/api/screen` (AAPL+MSFT) y
+   `/api/brief?ticker=AAPL` responden 200 sin auth en `fundscan.vercel.app`,
+   con `financial_strength` presente (Altman ≈11.9 "segura", Piotroski 8/9).
 
 ## Protocolo de reanudación
 
