@@ -23,18 +23,23 @@ from ..fetcher.byma_adapter import resolve_symbol
 PROFITABILITY_METRICS: tuple[tuple[str, str, str], ...] = (
     ("roic", "ROIC", "pct"),
     ("roe", "ROE", "pct"),
+    ("roa", "ROA", "pct"),
     ("gross_margin", "Margen bruto", "pct"),
     ("operating_margin", "Margen operativo", "pct"),
     ("net_margin", "Margen neto", "pct"),
     ("effective_tax_rate", "Tasa impositiva efectiva", "pct"),
+    ("asset_turnover", "Rotación de activos", "x"),
 )
 
 GROWTH_METRICS: tuple[tuple[str, str, str], ...] = (
     ("revenue", "Ingresos", "money"),
     ("eps_diluted", "EPS diluido", "num"),
     ("free_cash_flow", "FCF", "money"),
+    ("fcf_margin", "Margen FCF", "pct"),
     ("fcf_after_sbc", "FCF − SBC", "money"),
     ("sbc_to_revenue", "SBC / ingresos", "pct"),
+    ("shares_outstanding", "Acciones en circulación", "money"),
+    ("payout_ratio", "Payout ratio", "pct"),
 )
 
 HEALTH_METRICS: tuple[tuple[str, str, str], ...] = (
@@ -159,6 +164,7 @@ def run_brief(ticker: str, *, years: int = 5, provider: str = "yfinance") -> dic
         "summary": _summary(profile),
         "valuation": _valuation_payload(profile.valuation),
         "cost_of_capital": profile.cost_of_capital.to_dict() if profile.cost_of_capital else None,
+        "financial_strength": profile.financial_strength.to_dict() if profile.financial_strength else None,
         "gaps": profile.gaps(),
         "warnings": list(profile.warnings),
     }

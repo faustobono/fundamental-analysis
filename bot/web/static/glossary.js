@@ -93,6 +93,18 @@ const GLOSSARY = {
     titulo: "Margen neto",
     texto: "Ganancia neta sobre ingresos — lo que queda para el accionista después de todo, como % de lo que factura la empresa.",
   },
+  roa: {
+    titulo: "ROA (Return on Assets)",
+    texto:
+      "Ganancia neta dividida por el activo total. Cuánto retorno genera la " +
+      "empresa sobre todo lo que posee, sin importar cómo lo financió. Un ROA " +
+      "bajo con un ROE alto suele significar que la rentabilidad para el " +
+      "accionista viene apalancada con deuda, no del negocio en sí.",
+  },
+  asset_turnover: {
+    titulo: "Rotación de activos",
+    texto: "Ingresos divididos por activo total. Cuánta venta genera la empresa por cada peso de activo — una medida de eficiencia operativa, no de rentabilidad.",
+  },
   effective_tax_rate: {
     titulo: "Tasa impositiva efectiva",
     texto:
@@ -132,6 +144,26 @@ const GLOSSARY = {
   sbc_to_revenue: {
     titulo: "SBC / ingresos",
     texto: "Compensación en acciones como % de los ingresos. Un número alto es una señal de dilución significativa, incluso si el FCF reportado se ve sano.",
+  },
+  fcf_margin: {
+    titulo: "Margen de FCF",
+    texto: "Free cash flow sobre ingresos. Qué porción de cada peso facturado termina como caja libre real, después de mantener y hacer crecer el negocio.",
+  },
+  shares_outstanding: {
+    titulo: "Acciones en circulación",
+    texto:
+      "Cantidad de acciones emitidas, por ejercicio. Si sube con el tiempo hay " +
+      "dilución (la empresa emite acciones nuevas); si baja, la empresa está " +
+      "recomprando más de lo que emite — buena señal para el accionista actual " +
+      "si se hace a un precio razonable.",
+  },
+  payout_ratio: {
+    titulo: "Payout ratio",
+    texto:
+      "Dividendos pagados sobre ganancia neta del mismo ejercicio. Qué " +
+      "porción de la ganancia se reparte en dividendos en vez de reinvertirse. " +
+      "Sin dato cuando la empresa no reparte dividendos o cuando pierde plata " +
+      "(un payout sobre una base negativa no tiene lectura).",
   },
   cagr_revenue: {
     titulo: "CAGR de ingresos",
@@ -186,6 +218,30 @@ const GLOSSARY = {
   cash_days: {
     titulo: "Días de caja",
     texto: "Cuántos días de gasto operativo cubre la caja disponible, al ritmo actual.",
+  },
+
+  // --- fortaleza financiera / riesgo ----------------------------------------
+
+  altman_z_score: {
+    titulo: "Altman Z-Score",
+    texto:
+      "Combina liquidez, ganancias acumuladas, rentabilidad operativa, " +
+      "apalancamiento a valor de mercado y eficiencia de activos en un solo " +
+      "número que estima riesgo de quiebra. Z > 2.99 es zona segura, Z < 1.81 " +
+      "es zona de riesgo, y en el medio queda una zona gris. Es una señal de " +
+      "alerta temprana, no un diagnóstico de crédito definitivo — y requiere el " +
+      "market cap actual, así que sólo se calcula para el último ejercicio.",
+  },
+  piotroski_f_score: {
+    titulo: "Piotroski F-Score",
+    texto:
+      "9 criterios binarios (rentabilidad, calidad de la ganancia, " +
+      "apalancamiento, liquidez, dilución y márgenes) que comparan el último " +
+      "ejercicio contra el anterior. Cada uno suma 1 punto si se cumple. Un " +
+      "puntaje alto (7-9) sugiere una empresa fundamentalmente fuerte y en " +
+      "mejora; uno bajo (0-2), fundamentals deteriorándose. Si a algún " +
+      "criterio le falta el dato para evaluarse, se excluye del puntaje en vez " +
+      "de contar como no cumplido.",
   },
 
   // --- costo de capital ----------------------------------------------------

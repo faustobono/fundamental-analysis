@@ -82,6 +82,8 @@ EQUITY = ("totalStockholdersEquity", "totalEquity", "totalStockholderEquity")
 CURRENT_ASSETS = ("totalCurrentAssets",)
 CURRENT_LIABILITIES = ("totalCurrentLiabilities",)
 SHARES_OUTSTANDING = ("weightedAverageShsOutDil", "weightedAverageShsOut")
+TOTAL_ASSETS = ("totalAssets",)
+RETAINED_EARNINGS = ("retainedEarnings",)
 
 # --- cash flow --------------------------------------------------------------
 
@@ -90,6 +92,7 @@ CAPEX = ("capitalExpenditure",)
 FREE_CASH_FLOW = ("freeCashFlow",)
 STOCK_BASED_COMP = ("stockBasedCompensation",)
 BUYBACKS = ("commonStockRepurchased", "netStockRepurchase")
+DIVIDENDS_PAID = ("dividendsPaid", "commonDividendsPaid", "netDividendsPaid")
 
 # --- profile ----------------------------------------------------------------
 

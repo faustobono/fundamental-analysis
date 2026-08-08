@@ -11,6 +11,7 @@ from datetime import date
 from typing import Callable, Optional, Sequence
 
 from ..analysis.profile import CompanyProfile
+from ..analysis.scores import ALTMAN_DISTRESS, ALTMAN_SAFE
 from ..analysis.series import FinancialHistory
 from ..analysis.valuation import ValuationProfile
 
@@ -107,10 +108,12 @@ def render_profitability(profile: CompanyProfile) -> str:
         [
             ("roic", "ROIC", pct),
             ("roe", "ROE", pct),
+            ("roa", "ROA", pct),
             ("gross_margin", "M. bruto", pct),
             ("operating_margin", "M. operativo", pct),
             ("net_margin", "M. neto", pct),
             ("effective_tax_rate", "Tasa efectiva", pct),
+            ("asset_turnover", "Rotación activos", times),
         ],
     )
     h = profile.history
@@ -131,8 +134,11 @@ def render_growth(profile: CompanyProfile) -> str:
             ("revenue", "Ingresos", money),
             ("eps_diluted", "EPS diluido", lambda v: num(v, 2)),
             ("free_cash_flow", "FCF", money),
+            ("fcf_margin", "Margen FCF", pct),
             ("fcf_after_sbc", "FCF − SBC", money),
             ("sbc_to_revenue", "SBC / ingresos", pct),
+            ("shares_outstanding", "Acciones en circulación", money),
+            ("payout_ratio", "Payout ratio", pct),
         ],
     )
     resumen = [
@@ -234,6 +240,32 @@ def render_cost_of_capital(profile: CompanyProfile) -> str:
     )
 
 
+def render_financial_strength(profile: CompanyProfile) -> str:
+    fs = profile.financial_strength
+    if fs is None or (fs.altman is None and fs.piotroski is None):
+        return "_Sin datos suficientes para calcular Altman Z-Score o Piotroski F-Score._\n"
+
+    lines = []
+    if fs.altman is not None:
+        lines.append(
+            f"- **Altman Z-Score**: {fs.altman.z_score:.2f} — zona **{fs.altman.zone}** "
+            f"(> {ALTMAN_SAFE:.2f} segura, < {ALTMAN_DISTRESS:.2f} riesgo)"
+        )
+    else:
+        lines.append("- **Altman Z-Score**: sin datos suficientes (activos, patrimonio o market cap faltantes).")
+
+    if fs.piotroski is not None:
+        p = fs.piotroski
+        lines.append(f"- **Piotroski F-Score**: {p.score}/{p.max_score} criterios cumplidos")
+        for c in p.criteria:
+            mark = "✓" if c.passed else ("✗" if c.passed is False else "—")
+            lines.append(f"  - {mark} {c.label}")
+    else:
+        lines.append("- **Piotroski F-Score**: sin ejercicio anterior contra el cual comparar.")
+
+    return "\n".join(lines) + "\n"
+
+
 def render_gaps(profile: CompanyProfile) -> str:
     lines = [f"- {gap}" for gap in profile.gaps()]
     lines += [f"- ⚠ {w}" for w in profile.warnings]
@@ -282,6 +314,9 @@ def render_data_block(profile: CompanyProfile) -> str:
             "## Componentes del costo de capital",
             "",
             render_cost_of_capital(profile),
+            "## Fortaleza financiera (Altman Z-Score / Piotroski F-Score)",
+            "",
+            render_financial_strength(profile),
             "## LO QUE NO ESTÁ",
             "",
             render_gaps(profile),

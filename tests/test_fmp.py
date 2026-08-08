@@ -58,11 +58,13 @@ BALANCE = [
         "date": "2025-09-30", "cashAndShortTermInvestments": 20_000,
         "totalDebt": 30_000, "totalStockholdersEquity": 60_000,
         "totalCurrentAssets": 50_000, "totalCurrentLiabilities": 40_000,
+        "totalAssets": 150_000, "retainedEarnings": 70_000,
     },
     {
         "date": "2024-09-30", "cashAndShortTermInvestments": 18_000,
         "totalDebt": 33_000, "totalStockholdersEquity": 55_000,
         "totalCurrentAssets": 48_000, "totalCurrentLiabilities": 41_000,
+        "totalAssets": 140_000, "retainedEarnings": 60_000,
     },
 ]
 
@@ -71,11 +73,13 @@ CASHFLOW = [
         "date": "2025-09-30", "operatingCashFlow": 30_000,
         "capitalExpenditure": -5_000, "freeCashFlow": 25_000,
         "stockBasedCompensation": 2_000, "commonStockRepurchased": -8_000,
+        "dividendsPaid": -4_000,
     },
     {
         "date": "2024-09-30", "operatingCashFlow": 27_000,
         "capitalExpenditure": -4_000, "freeCashFlow": 23_000,
         "stockBasedCompensation": 1_800, "commonStockRepurchased": -7_000,
+        "dividendsPaid": -3_500,
     },
 ]
 
@@ -331,3 +335,24 @@ class TestDeep:
         gaps = profile.gaps()
         assert any("fmp" in g.lower() and "segmentos" in g.lower() for g in gaps)
         assert not any("yfinance" in g.lower() for g in gaps)
+
+    def test_total_assets_y_retained_earnings_llegan_al_periodo(self, profile):
+        latest = profile.history.latest
+        assert latest.total_assets == 150_000
+        assert latest.retained_earnings == 70_000
+        assert latest.dividends_paid == -4_000
+        assert latest.roa == pytest.approx(22_400 / 150_000)
+        assert latest.payout_ratio == pytest.approx(4_000 / 22_400)
+
+    def test_financial_strength_completo_con_datos_de_balance(self, profile):
+        # A diferencia del fixture "healthy" de yfinance (sin Total Assets), acá
+        # BALANCE trae todo lo que pide el Altman, así que también se calcula.
+        fs = profile.financial_strength
+        assert fs is not None
+        assert fs.altman is not None
+        assert fs.altman.zone == "segura"
+        assert fs.piotroski is not None
+        assert fs.piotroski.max_score == 9
+        assert fs.piotroski.score == 8
+        emision = next(c for c in fs.piotroski.criteria if c.name == "sin_nuevas_acciones")
+        assert emision.passed is False  # las acciones en circulación subieron

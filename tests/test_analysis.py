@@ -21,6 +21,7 @@ from bot.analysis.valuation import (
     period_public_at,
 )
 from bot.analysis.profile import build_profile
+from bot.analysis.scores import altman_z_score, piotroski_f_score
 
 from .conftest import frame
 
@@ -89,9 +90,23 @@ class TestRatiosDerivados:
         p = AnnualPeriod(period_end=date(2025, 12, 31))
         for name in ("gross_margin", "operating_margin", "net_margin", "net_debt",
                      "net_debt_to_ebitda", "interest_coverage", "current_ratio",
-                     "cash_days", "roe", "fcf_after_sbc"):
+                     "cash_days", "roe", "fcf_after_sbc", "roa", "asset_turnover",
+                     "payout_ratio"):
             assert getattr(p, name) is None
         assert p.roic() is None
+
+    def test_roa_y_rotacion_de_activos(self):
+        p = period(2025, revenue=1000.0, net_income=120.0, total_assets=800.0)
+        assert p.roa == pytest.approx(0.15)
+        assert p.asset_turnover == pytest.approx(1.25)
+
+    def test_payout_ratio(self):
+        p = period(2025, net_income=200.0, dividends_paid=-60.0)
+        assert p.payout_ratio == pytest.approx(0.30)
+
+    def test_payout_ratio_sin_lectura_si_la_empresa_pierde_plata(self):
+        p = period(2025, net_income=-50.0, dividends_paid=-10.0)
+        assert p.payout_ratio is None
 
 
 class TestSeries:
@@ -291,6 +306,85 @@ class TestPerfilCompleto:
         assert profile.lag_days == REPORTING_LAG_DAYS
 
 
+class TestAltmanZScore:
+    def _sano(self):
+        return period(
+            2025, total_assets=1000.0, total_equity=600.0, retained_earnings=400.0,
+            ebit=200.0, revenue=1500.0, current_assets=500.0, current_liabilities=200.0,
+        )
+
+    def _en_problemas(self):
+        return period(
+            2025, total_assets=1000.0, total_equity=100.0, retained_earnings=-200.0,
+            ebit=-50.0, revenue=300.0, current_assets=100.0, current_liabilities=250.0,
+        )
+
+    def test_zona_segura(self):
+        result = altman_z_score(self._sano(), market_cap=2000.0)
+        assert result.z_score == pytest.approx(6.08, abs=1e-2)
+        assert result.zone == "segura"
+
+    def test_zona_de_riesgo(self):
+        result = altman_z_score(self._en_problemas(), market_cap=50.0)
+        assert result.z_score < 1.81
+        assert result.zone == "riesgo"
+
+    def test_sin_activos_totales_no_hay_score(self):
+        assert altman_z_score(period(2025), market_cap=1000.0) is None
+
+    def test_sin_market_cap_no_hay_score(self):
+        assert altman_z_score(self._sano(), market_cap=None) is None
+
+    def test_pasivo_total_no_positivo_no_hay_score(self):
+        # activos == patrimonio implica pasivo total cero: X4 no tiene lectura.
+        p = period(2025, total_assets=1000.0, total_equity=1000.0, retained_earnings=100.0,
+                    ebit=50.0, revenue=200.0, current_assets=300.0, current_liabilities=100.0)
+        assert altman_z_score(p, market_cap=500.0) is None
+
+
+class TestPiotroskiFScore:
+    def _prior(self, **kwargs):
+        base = dict(
+            revenue=1000.0, net_income=50.0, total_assets=1000.0, gross_profit=300.0,
+            operating_cash_flow=40.0, total_debt=500.0, current_assets=200.0,
+            current_liabilities=150.0, shares_outstanding=100.0,
+        )
+        base.update(kwargs)
+        return period(2024, **base)
+
+    def _current(self, **kwargs):
+        base = dict(
+            revenue=1300.0, net_income=120.0, total_assets=1200.0, gross_profit=450.0,
+            operating_cash_flow=150.0, total_debt=480.0, current_assets=300.0,
+            current_liabilities=180.0, shares_outstanding=95.0,
+        )
+        base.update(kwargs)
+        return period(2025, **base)
+
+    def test_sin_ejercicio_anterior_no_hay_score(self):
+        assert piotroski_f_score(self._current(), None) is None
+
+    def test_todos_los_criterios_cumplidos(self):
+        result = piotroski_f_score(self._current(), self._prior())
+        assert result.score == 9
+        assert result.max_score == 9
+        assert all(c.passed for c in result.criteria)
+
+    def test_dato_faltante_se_excluye_no_penaliza(self):
+        # Sin acciones en circulación del ejercicio previo, ese criterio puntual
+        # queda en None y no cuenta ni a favor ni en contra.
+        prior = self._prior(shares_outstanding=None)
+        result = piotroski_f_score(self._current(), prior)
+        assert result.max_score == 8
+        assert result.score == 8
+        sin_datos = next(c for c in result.criteria if c.name == "sin_nuevas_acciones")
+        assert sin_datos.passed is None
+
+    def test_sin_datos_evaluables_no_hay_score(self):
+        # `period()` sólo pone revenue/net_income por default: nada más para evaluar.
+        assert piotroski_f_score(period(2025), period(2024)) is None
+
+
 class TestCompanyProfileProvider:
     """Simétrico al de FMP en test_fmp.py: el default de yfinance no debe
     acusar a FMP por lo que no trae, igual que FMP no debe acusar a yfinance.
@@ -305,3 +399,15 @@ class TestCompanyProfileProvider:
         gaps = build_profile("TEST", healthy_factory).gaps()
         assert any("yfinance" in g.lower() and "segmentos" in g.lower() for g in gaps)
         assert not any("fmp" in g.lower() for g in gaps)
+
+    def test_financial_strength_parcial_cuando_falta_total_assets(self, healthy_factory):
+        # El fixture "healthy" no trae Total Assets ni Retained Earnings, así
+        # que el Altman queda en None; el Piotroski sí puede evaluar los
+        # criterios que no dependen de esas líneas (CFO, calidad de la
+        # ganancia, margen bruto).
+        fs = build_profile("TEST", healthy_factory).financial_strength
+        assert fs is not None
+        assert fs.altman is None
+        assert fs.piotroski is not None
+        assert fs.piotroski.max_score == 3
+        assert fs.piotroski.score == 3

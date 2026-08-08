@@ -236,6 +236,50 @@
     return box;
   }
 
+  const ALTMAN_ZONE_CLASS = { segura: "badge-good", gris: "badge-info", riesgo: "badge-bad" };
+
+  function renderFinancialStrength(data) {
+    const box = section(
+      "Fortaleza financiera y riesgo",
+      "Altman Z-Score estima riesgo de quiebra; Piotroski F-Score mide fortaleza fundamental año contra año. Dos modelos de screening clásicos, no un diagnóstico definitivo."
+    );
+    const fs = data.financial_strength;
+    if (!fs || (fs.altman_z_score === null && fs.piotroski_score === null)) {
+      box.insertAdjacentHTML("beforeend", `<p class="empty-inline">Sin datos suficientes para calcularlos.</p>`);
+      return box;
+    }
+
+    const items = [];
+    if (fs.altman_z_score !== null) {
+      const zoneClass = ALTMAN_ZONE_CLASS[fs.altman_zone] ?? "badge-info";
+      items.push([
+        `Altman Z-Score${infoButtonHTML("altman_z_score")}`,
+        `${fs.altman_z_score.toFixed(2)} <span class="badge ${zoneClass}">${fs.altman_zone}</span>`,
+      ]);
+    }
+    if (fs.piotroski_score !== null) {
+      items.push([
+        `Piotroski F-Score${infoButtonHTML("piotroski_f_score")}`,
+        `${fs.piotroski_score}/${fs.piotroski_max_score}`,
+      ]);
+    }
+    box.appendChild(summaryStrip(items));
+
+    if (fs.piotroski_criteria && fs.piotroski_criteria.length) {
+      const ul = document.createElement("ul");
+      ul.className = "piotroski-checklist";
+      fs.piotroski_criteria.forEach((c) => {
+        const li = document.createElement("li");
+        const mark = c.cumplido === true ? "✓" : c.cumplido === false ? "✗" : "—";
+        li.className = c.cumplido === true ? "ok" : c.cumplido === false ? "bad" : "na";
+        li.textContent = `${mark} ${c.etiqueta}`;
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+    }
+    return box;
+  }
+
   function renderGaps(data) {
     if (!data.gaps.length && !data.warnings.length) return null;
     const box = section("Lo que no está / calidad del dato");
@@ -264,6 +308,7 @@
       renderHealth(data),
       renderValuation(data),
       renderCostOfCapital(data),
+      renderFinancialStrength(data),
       renderGaps(data)
     );
   }

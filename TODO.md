@@ -34,7 +34,15 @@
 - [ ] Probar el screener con un universo suficientemente grande por sector.
 - [ ] Verificar el comportamiento de CEDEARs/ADRs usando FMP y `cedear_map.json`.
 - [ ] Confirmar límites, errores y consumo del free tier de FMP en el hosting elegido.
-- [ ] Documentar la URL y el procedimiento de actualización una vez publicado.
+- [x] Documentar la URL y el procedimiento de actualización una vez publicado
+      (dominio nuevo: `fundscan.vercel.app`, ver `DECISIONS.md`).
+- [x] Ampliar la Capa 1 con más datos para un análisis fundamental completo:
+      ROA, rotación de activos, margen de FCF, acciones en circulación,
+      payout ratio, Altman Z-Score y Piotroski F-Score. Ver detalle en
+      `kickoff.md`. 319 tests, verificado contra AAPL real.
+- [x] Pase de optimización/refactor con un subagente nuevo
+      (`.claude/agents/code-optimizer.md`). Ver `kickoff.md`.
+- [x] Renombrar el proyecto de Vercel a un dominio más corto: `fundscan`.
 
 ## Baja prioridad
 

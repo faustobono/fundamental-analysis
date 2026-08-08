@@ -43,11 +43,14 @@ def _annual_period(inc: dict[str, Any], bal: dict[str, Any], cf: dict[str, Any])
         current_assets=f.num(bal, f.CURRENT_ASSETS),
         current_liabilities=f.num(bal, f.CURRENT_LIABILITIES),
         shares_outstanding=f.num(inc, f.DILUTED_SHARES) or f.num(bal, f.SHARES_OUTSTANDING),
+        total_assets=f.num(bal, f.TOTAL_ASSETS),
+        retained_earnings=f.num(bal, f.RETAINED_EARNINGS),
         operating_cash_flow=f.num(cf, f.OPERATING_CASH_FLOW),
         capex=f.num(cf, f.CAPEX),
         free_cash_flow=f.free_cash_flow(cf),
         stock_based_comp=f.num(cf, f.STOCK_BASED_COMP),
         buybacks=f.num(cf, f.BUYBACKS),
+        dividends_paid=f.num(cf, f.DIVIDENDS_PAID),
     )
 
 

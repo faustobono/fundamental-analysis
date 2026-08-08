@@ -482,6 +482,21 @@ button.primary:disabled { opacity: 0.55; cursor: progress; }
 
 .warnings li.gap { color: var(--text-dim); background: var(--surface-2); }
 
+.piotroski-checklist {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.piotroski-checklist li { padding: 3px 0; }
+.piotroski-checklist li.ok { color: var(--accent); }
+.piotroski-checklist li.bad { color: var(--danger); }
+.piotroski-checklist li.na { color: var(--text-faint); }
+
 /* --- botón de info + popover ------------------------------------------------ */
 
 .info-btn {

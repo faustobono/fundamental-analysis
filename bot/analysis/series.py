@@ -51,6 +51,8 @@ class AnnualPeriod:
     current_assets: Optional[float] = None
     current_liabilities: Optional[float] = None
     shares_outstanding: Optional[float] = None
+    total_assets: Optional[float] = None
+    retained_earnings: Optional[float] = None
 
     # --- flujo de fondos ---------------------------------------------------
     operating_cash_flow: Optional[float] = None
@@ -58,6 +60,7 @@ class AnnualPeriod:
     free_cash_flow: Optional[float] = None
     stock_based_comp: Optional[float] = None
     buybacks: Optional[float] = None
+    dividends_paid: Optional[float] = None
 
     def __post_init__(self) -> None:
         for f in fields(self):
@@ -122,6 +125,15 @@ class AnnualPeriod:
     def roe(self) -> Optional[float]:
         return _div(self.net_income, self.total_equity)
 
+    @property
+    def roa(self) -> Optional[float]:
+        return _div(self.net_income, self.total_assets)
+
+    @property
+    def asset_turnover(self) -> Optional[float]:
+        """Ingresos / activos totales. Cuánta venta genera cada peso de activo."""
+        return _div(self.revenue, self.total_assets)
+
     # --- salud financiera --------------------------------------------------
 
     @property
@@ -162,6 +174,14 @@ class AnnualPeriod:
     @property
     def debt_to_equity(self) -> Optional[float]:
         return _div(self.total_debt, self.total_equity)
+
+    @property
+    def payout_ratio(self) -> Optional[float]:
+        """Dividendos pagados sobre ganancia neta. None si la empresa pierde plata:
+        un payout sobre una base negativa no tiene lectura (daría un % sin sentido)."""
+        if self.dividends_paid is None or self.net_income is None or self.net_income <= 0:
+            return None
+        return abs(self.dividends_paid) / self.net_income
 
     # --- dilución ----------------------------------------------------------
 
@@ -321,11 +341,14 @@ def build_history(
                 current_assets=st.row_value(balance_sheet, st.CURRENT_ASSETS, i),
                 current_liabilities=st.row_value(balance_sheet, st.CURRENT_LIABILITIES, i),
                 shares_outstanding=st.row_value(balance_sheet, st.SHARES_OUTSTANDING, i),
+                total_assets=st.row_value(balance_sheet, st.TOTAL_ASSETS, i),
+                retained_earnings=st.row_value(balance_sheet, st.RETAINED_EARNINGS, i),
                 operating_cash_flow=st.row_value(cashflow, st.OPERATING_CASH_FLOW, i),
                 capex=st.row_value(cashflow, st.CAPEX, i),
                 free_cash_flow=st.free_cash_flow(cashflow, i),
                 stock_based_comp=st.row_value(cashflow, st.STOCK_BASED_COMP, i),
                 buybacks=st.row_value(cashflow, st.BUYBACKS, i),
+                dividends_paid=st.row_value(cashflow, st.DIVIDENDS_PAID, i),
             )
         )
     # Se descartan las columnas fantasma para que el conteo de ejercicios sea

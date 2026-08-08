@@ -113,7 +113,7 @@ FMP_API_KEY=tu_key_de_fmp
 la cuota de FMP debe considerarse al exponer la app públicamente.
 
 La producción actual está disponible en
-[`fundamental-analysis-eight.vercel.app`](https://fundamental-analysis-eight.vercel.app).
+[`fundscan.vercel.app`](https://fundscan.vercel.app).
 
 Detalles de la UI que valen la pena:
 
@@ -134,7 +134,7 @@ listo para pegar en cualquier chat. Es la Capa 1 de un esquema de dos:
 
 | | Qué hace | Dónde corre |
 |---|---|---|
-| **Capa 1** | Trae y calcula: ROIC y márgenes a 5 años, deuda neta/EBITDA, cobertura de intereses, días de caja, FCF neto de SBC, múltiplos vs. su propia mediana histórica | Este bot. Determinístico, gratis, testeado |
+| **Capa 1** | Trae y calcula: ROIC, ROA y márgenes a 5 años, deuda neta/EBITDA, cobertura de intereses, días de caja, FCF neto de SBC, margen de FCF, payout ratio, acciones en circulación, rotación de activos, múltiplos vs. su propia mediana histórica, Altman Z-Score (riesgo de quiebra) y Piotroski F-Score (fortaleza fundamental año contra año) | Este bot. Determinístico, gratis, testeado |
 | **Capa 2** | Tesis, moat, riesgos, veredicto | Vos, pegando el output en un chat |
 
 `--data-only` emite sólo las tablas, sin el prompt. `--context-file` reemplaza el

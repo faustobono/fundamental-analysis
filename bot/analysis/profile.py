@@ -24,6 +24,7 @@ from ..fetcher.deep import DeepData, fetch_deep
 from ..fetcher.yfinance_adapter import DEFAULT_TAX_RATE, TickerFactory, YFinanceAdapter, _default_ticker_factory, _info_value
 from ..models import FundamentalSnapshot
 from ..normalizer.normalize import normalize
+from .scores import AltmanResult, PiotroskiResult, altman_z_score, piotroski_f_score
 from .series import FinancialHistory, build_history, latest_with
 from .valuation import ValuationProfile, build_valuation
 
@@ -100,12 +101,38 @@ class GrowthOutlook:
 
 
 @dataclass(frozen=True)
+class FinancialStrength:
+    """Altman Z-Score (riesgo de quiebra) y Piotroski F-Score (fortaleza
+    fundamental), los dos modelos de screening clásicos que un trader espera
+    ver junto al resto del análisis. Cada uno queda en `None` si falta algún
+    insumo verificable — ver `bot/analysis/scores.py`."""
+
+    altman: Optional[AltmanResult] = None
+    piotroski: Optional[PiotroskiResult] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "altman_z_score": self.altman.z_score if self.altman else None,
+            "altman_zone": self.altman.zone if self.altman else None,
+            "piotroski_score": self.piotroski.score if self.piotroski else None,
+            "piotroski_max_score": self.piotroski.max_score if self.piotroski else None,
+            "piotroski_criteria": [
+                {"nombre": c.name, "etiqueta": c.label, "cumplido": c.passed}
+                for c in self.piotroski.criteria
+            ]
+            if self.piotroski
+            else [],
+        }
+
+
+@dataclass(frozen=True)
 class CompanyProfile:
     snapshot: FundamentalSnapshot
     history: FinancialHistory
     valuation: Optional[ValuationProfile] = None
     cost_of_capital: Optional[CostOfCapitalInputs] = None
     growth: Optional[GrowthOutlook] = None
+    financial_strength: Optional[FinancialStrength] = None
     warnings: tuple[str, ...] = ()
     provider: str = "yfinance"
     """Quién trajo los datos. No es `snapshot.source`: ese campo se pisa a
@@ -178,6 +205,18 @@ def _cost_of_capital(
     )
 
 
+def _financial_strength(history: FinancialHistory, market_cap: Optional[float]) -> Optional[FinancialStrength]:
+    latest = history.latest
+    if latest is None:
+        return None
+    prior = history.periods[1] if len(history.periods) > 1 else None
+    altman = altman_z_score(latest, market_cap)
+    piotroski = piotroski_f_score(latest, prior)
+    if altman is None and piotroski is None:
+        return None
+    return FinancialStrength(altman=altman, piotroski=piotroski)
+
+
 def assemble_profile(
     snapshot: FundamentalSnapshot,
     history: FinancialHistory,
@@ -221,6 +260,7 @@ def assemble_profile(
         valuation=valuation,
         cost_of_capital=_cost_of_capital(history, beta=beta, market_cap=market_cap),
         growth=growth,
+        financial_strength=_financial_strength(history, market_cap),
         warnings=tuple(dict.fromkeys(warnings)),
         provider=provider,
     )
@@ -302,6 +342,7 @@ def build_profile(
 __all__ = [
     "CompanyProfile",
     "CostOfCapitalInputs",
+    "FinancialStrength",
     "GrowthOutlook",
     "assemble_profile",
     "build_profile",

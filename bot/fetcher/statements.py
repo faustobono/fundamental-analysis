@@ -118,6 +118,8 @@ CASH = (
 CURRENT_ASSETS = ("Current Assets", "Total Current Assets")
 CURRENT_LIABILITIES = ("Current Liabilities", "Total Current Liabilities")
 SHARES_OUTSTANDING = ("Ordinary Shares Number", "Share Issued", "Common Stock Shares Outstanding")
+TOTAL_ASSETS = ("Total Assets",)
+RETAINED_EARNINGS = ("Retained Earnings",)
 
 FREE_CASH_FLOW = ("Free Cash Flow",)
 OPERATING_CASH_FLOW = (
@@ -128,6 +130,7 @@ OPERATING_CASH_FLOW = (
 CAPEX = ("Capital Expenditure", "Capital Expenditures")
 STOCK_BASED_COMP = ("Stock Based Compensation",)
 BUYBACKS = ("Repurchase Of Capital Stock",)
+DIVIDENDS_PAID = ("Cash Dividends Paid", "Common Stock Dividend Paid")
 
 
 def total_debt(balance_sheet: Any, column: int = 0) -> Optional[float]:
