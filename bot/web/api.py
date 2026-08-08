@@ -140,6 +140,7 @@ def run_screen(
     min_metrics: int = 2,
     use_cache: bool = True,
     cache_ttl_hours: float = 24.0,
+    provider: str = "yfinance",
 ) -> dict[str, Any]:
     """Corre el pipeline completo y devuelve el payload que consume el front.
 
@@ -148,7 +149,9 @@ def run_screen(
     """
     started = time.monotonic()
 
-    service, cache = build_service(ttl_hours=cache_ttl_hours, use_cache=use_cache)
+    service, cache = build_service(
+        provider=provider, ttl_hours=cache_ttl_hours, use_cache=use_cache
+    )
     try:
         result = service.get_many(tickers)
     finally:
@@ -179,6 +182,7 @@ def run_screen(
             "failed": len(result.failures),
             "cache_hits": result.cache_hits,
             "elapsed_ms": int((time.monotonic() - started) * 1000),
+            "provider": provider,
             "method": method.value,
             "min_peers": min_peers,
             "min_metrics": min_metrics,

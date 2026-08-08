@@ -4,7 +4,7 @@ Screener que trae fundamentals, los normaliza y **rankea por sector**.
 Determinístico y offline: sin API paga, sin llamadas a ningún LLM.
 
 ```
-fetcher/     yfinance + BYMA (CEDEARs/ADRs) + cache SQLite con TTL
+fetcher/     yfinance + FMP + BYMA (CEDEARs/ADRs) + cache SQLite con TTL
 normalizer/  modelo común, sanity checks, moneda
 scorer/      ranking intra-sector por percentil o z-score
 analysis/    series 5 años, salud financiera, valuación vs. historia propia
@@ -15,6 +15,51 @@ cli/         python -m bot screener | brief | serve
 
 Dos usos distintos: **`screener`** filtra un universo por sector, **`brief`** hace la
 inmersión en una sola empresa.
+
+## Proveedores de datos
+
+El bot lee de dos fuentes, detrás de la misma interfaz — el resto del pipeline no
+las distingue:
+
+| `--provider` | Qué es | Key | Para |
+|---|---|---|---|
+| `yfinance` (default) | Scrape de Yahoo | No | Correr local |
+| `fmp` | API de Financial Modeling Prep | Sí (`FMP_API_KEY`) | Desplegar |
+
+**Por qué dos.** yfinance scrapea endpoints no oficiales de Yahoo: anda gratis en tu
+máquina, pero Yahoo bloquea IPs de datacenter, así que en la nube falla. FMP es una
+API con key que sale sin bloqueo — es la que sirve para un deploy.
+
+FMP free: 250 requests/día, 5 años de balances anuales de empresas US (incluye los
+subyacentes de CEDEARs/ADRs). Sacás la key gratis en
+[financialmodelingprep.com](https://site.financialmodelingprep.com/) (email, sin
+tarjeta).
+
+```bash
+export FMP_API_KEY=tu_key
+export BOT_PROVIDER=fmp        # o pasá --provider fmp en cada comando
+```
+
+**Los ratios se calculan igual desde las líneas contables**, no se toman precocidos
+de FMP — mismo principio que con yfinance. Por eso el free tier alcanza: sólo hace
+falta el statement crudo, el precio y el sector.
+
+### Validar FMP contra la API real (smoke-test)
+
+El adapter está testeado contra fixtures, pero conviene confirmar que los nombres de
+campo de FMP coinciden con los que usa tu key:
+
+```bash
+FMP_API_KEY=tu_key python -m bot brief AAPL --provider fmp --data-only
+```
+
+Qué mirar en la salida:
+- **Tablas llenas de números** → los campos coinciden. Todo bien.
+- **Una columna toda en `—`** → un alias de campo quedó desfasado; el fix es una
+  línea en `bot/fetcher/fmp/fields.py`.
+- **Dividend yield** → verificá que la magnitud tenga sentido (~0.5–3%). Si da 4x,
+  FMP reporta el dividendo trimestral donde el bot asume anual (está anotado en el
+  código).
 
 ## Setup
 
@@ -28,7 +73,7 @@ Sin `uv`:
 python3.12 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ```
 
-Dependencias: `yfinance` y `pandas`. Nada más.
+Dependencias: `yfinance` y `pandas`. FMP usa sólo la stdlib (`urllib`), sin sumar nada.
 
 ## Uso
 
@@ -191,9 +236,10 @@ EBIT, así que ahí queda en `None` — y está bien, el ratio no aplica.
 .venv/bin/python -m pytest
 ```
 
-268 tests, sin red. El fetcher recibe una `ticker_factory` inyectable y el cache un
-reloj inyectable, así que todo el pipeline —fetcher → normalizer → scorer → analysis
-→ web— se testea de punta a punta con dobles.
+292 tests, sin red. El fetcher recibe una `ticker_factory` inyectable (yfinance) o un
+cliente HTTP inyectable (FMP), y el cache un reloj inyectable, así que todo el pipeline
+—fetcher → normalizer → scorer → analysis → web— se testea de punta a punta con dobles,
+para las dos fuentes.
 
 ## Limitaciones conocidas
 

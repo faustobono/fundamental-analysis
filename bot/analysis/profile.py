@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Optional
 
 from ..fetcher.deep import DeepData, fetch_deep
@@ -136,9 +137,13 @@ class CompanyProfile:
         return missing
 
 
-def _cost_of_capital(data: DeepData, history: FinancialHistory) -> CostOfCapitalInputs:
+def _cost_of_capital(
+    history: FinancialHistory,
+    *,
+    beta: Optional[float],
+    market_cap: Optional[float],
+) -> CostOfCapitalInputs:
     latest = history.latest
-    market_cap = _info_value(data.info, "marketCap")
     total_debt = latest.total_debt if latest else None
 
     # Costo histórico: intereses pagados sobre el stock de deuda. El costo
@@ -158,7 +163,7 @@ def _cost_of_capital(data: DeepData, history: FinancialHistory) -> CostOfCapital
             equity_weight = market_cap / total_capital
 
     return CostOfCapitalInputs(
-        beta=_info_value(data.info, "beta"),
+        beta=beta,
         cost_of_debt=cost_of_debt,
         cost_of_debt_year=cost_of_debt_year,
         effective_tax_rate=latest.effective_tax_rate if latest else None,
@@ -166,6 +171,52 @@ def _cost_of_capital(data: DeepData, history: FinancialHistory) -> CostOfCapital
         equity_weight=equity_weight,
         market_cap=market_cap,
         total_debt=total_debt,
+    )
+
+
+def assemble_profile(
+    snapshot: FundamentalSnapshot,
+    history: FinancialHistory,
+    prices: list[tuple[date, float]],
+    *,
+    beta: Optional[float],
+    market_cap: Optional[float],
+    current_price: Optional[float],
+    current_shares: Optional[float],
+    growth: Optional["GrowthOutlook"] = None,
+    extra_warnings: Optional[list[str]] = None,
+) -> CompanyProfile:
+    """Arma el `CompanyProfile` desde piezas ya traídas, sin saber el proveedor.
+
+    Es el punto donde convergen yfinance y FMP: todo lo de arriba (traer y mapear)
+    es específico del proveedor; todo lo de acá para abajo (la valuación, el costo
+    de capital, la guarda de monedas mixtas, los warnings) es común. Poner esta
+    lógica una sola vez es lo que evita que las dos fuentes se desincronicen.
+    """
+    warnings = list(snapshot.warnings) + list(extra_warnings or [])
+
+    valuation = None
+    if snapshot.has_currency_mismatch:
+        # market_cap sale de precio × acciones, en la moneda de cotización; los
+        # fundamentals del ejercicio están en la del balance. Para un ADR/CEDEAR
+        # argentino son ARS contra USD: dividir uno por otro no da un múltiplo
+        # raro, da ruido (un FCF yield de -30000% no es un dato distorsionado, es
+        # basura), así que no se calcula.
+        warnings.append(
+            "Balance y cotización en monedas distintas: no se calculan múltiplos de "
+            "valuación (P/E, EV/EBITDA, EV/Revenue, FCF yield, P/B, P/S). Cruzar precio "
+            "en una moneda con fundamentals en otra no da un múltiplo válido."
+        )
+    else:
+        valuation = build_valuation(history, prices, current_price, current_shares)
+
+    return CompanyProfile(
+        snapshot=snapshot,
+        history=history,
+        valuation=valuation,
+        cost_of_capital=_cost_of_capital(history, beta=beta, market_cap=market_cap),
+        growth=growth,
+        warnings=tuple(dict.fromkeys(warnings)),
     )
 
 
@@ -195,6 +246,25 @@ def _growth(data: DeepData) -> GrowthOutlook:
     )
 
 
+def company_profile(
+    ticker: str,
+    *,
+    provider: str = "yfinance",
+    requested_as: Optional[str] = None,
+    max_years: int = 5,
+) -> CompanyProfile:
+    """Arma el perfil desde el proveedor elegido. Punto único de dispatch.
+
+    El import de FMP es diferido a propósito: `fetcher.fmp.deep` importa este
+    módulo, así que traerlo arriba sería un ciclo. Adentro de la función no.
+    """
+    if provider == "fmp":
+        from ..fetcher.fmp import build_profile_fmp
+
+        return build_profile_fmp(ticker, requested_as=requested_as, max_years=max_years)
+    return build_profile(ticker, requested_as=requested_as, max_years=max_years)
+
+
 def build_profile(
     ticker: str,
     ticker_factory: TickerFactory = _default_ticker_factory,
@@ -202,7 +272,7 @@ def build_profile(
     requested_as: Optional[str] = None,
     max_years: int = 5,
 ) -> CompanyProfile:
-    """Trae y calcula todo lo verificable de una empresa."""
+    """Trae y calcula todo lo verificable de una empresa, desde yfinance."""
     data = fetch_deep(ticker, ticker_factory, requested_as=requested_as)
 
     snapshot = normalize(
@@ -210,38 +280,16 @@ def build_profile(
     )
     history = build_history(data.financials, data.balance_sheet, data.cashflow, max_years)
 
-    warnings = list(snapshot.warnings) + data.warnings
-
-    valuation = None
-    if snapshot.has_currency_mismatch:
-        # market_cap sale de precio × acciones, en la moneda de cotización; los
-        # fundamentals del ejercicio están en la moneda del balance. Para un
-        # ADR/CEDEAR argentino son ARS contra USD: dividir uno por otro no da un
-        # múltiplo raro, da ruido — un FCF yield de -30000% no es un dato
-        # distorsionado, es basura. Antes esto se calculaba igual y sólo se
-        # avisaba por texto que "podía estar distorsionado"; ahora directamente
-        # no se calcula.
-        warnings.append(
-            "Balance y cotización en monedas distintas: no se calculan múltiplos de "
-            "valuación (P/E, EV/EBITDA, EV/Revenue, FCF yield, P/B, P/S). Cruzar precio "
-            "en una moneda con fundamentals en otra no da un múltiplo válido."
-        )
-    else:
-        current_price = _info_value(data.info, "currentPrice", "regularMarketPrice", "previousClose")
-        valuation = build_valuation(
-            history,
-            data.prices,
-            current_price,
-            _info_value(data.info, "sharesOutstanding"),
-        )
-
-    return CompanyProfile(
-        snapshot=snapshot,
-        history=history,
-        valuation=valuation,
-        cost_of_capital=_cost_of_capital(data, history),
+    return assemble_profile(
+        snapshot,
+        history,
+        data.prices,
+        beta=_info_value(data.info, "beta"),
+        market_cap=_info_value(data.info, "marketCap"),
+        current_price=_info_value(data.info, "currentPrice", "regularMarketPrice", "previousClose"),
+        current_shares=_info_value(data.info, "sharesOutstanding"),
         growth=_growth(data),
-        warnings=tuple(dict.fromkeys(warnings)),
+        extra_warnings=data.warnings,
     )
 
 
@@ -249,6 +297,8 @@ __all__ = [
     "CompanyProfile",
     "CostOfCapitalInputs",
     "GrowthOutlook",
+    "assemble_profile",
     "build_profile",
+    "company_profile",
     "DEFAULT_TAX_RATE",
 ]

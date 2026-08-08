@@ -256,6 +256,14 @@ def build_valuation(
     current = compute_multiples(latest, current_price, shares, as_of=date.today())
     series = multiples_history(history, prices, lag_days)
 
+    # Sin observaciones históricas no hay "vs. su propia historia": no hay
+    # distribución donde ubicar el múltiplo de hoy. Pasa cuando falta el
+    # histórico de precios, o cuando todos los precios son anteriores a que el
+    # primer balance fuera público (el filtro de look-ahead los descarta). El
+    # múltiplo actual crudo ya vive en el snapshot (P/E, P/B, FCF yield).
+    if not series:
+        return None
+
     return ValuationProfile(
         current=current,
         bands={name: band(name, series, current.get(name)) for name in MULTIPLES},

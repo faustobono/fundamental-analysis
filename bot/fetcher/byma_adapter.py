@@ -17,10 +17,16 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Protocol
 
 from ..models import FundamentalSnapshot, UnmappedTickerError
 from .yfinance_adapter import YFinanceAdapter
+
+
+class UnderlyingSource(Protocol):
+    """Cualquier adapter que resuelva un ticker US: yfinance o FMP."""
+
+    def fetch(self, ticker: str, *, requested_as: Optional[str] = None) -> FundamentalSnapshot: ...
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +117,7 @@ class BymaAdapter:
     def __init__(
         self,
         cedear_map: Optional[CedearMap] = None,
-        underlying_adapter: Optional[YFinanceAdapter] = None,
+        underlying_adapter: Optional[UnderlyingSource] = None,
     ):
         self._map = cedear_map if cedear_map is not None else CedearMap.load()
         self._underlying = underlying_adapter or YFinanceAdapter()

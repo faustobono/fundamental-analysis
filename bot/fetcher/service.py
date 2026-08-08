@@ -126,8 +126,37 @@ class FundamentalsService:
         return result
 
 
+#: Proveedores de datos disponibles. yfinance scrapea Yahoo (anda local, se
+#: bloquea en la nube); fmp es una API con key, la que sirve para desplegar.
+PROVIDERS = ("yfinance", "fmp")
+DEFAULT_PROVIDER = "yfinance"
+
+
+def _build_adapters(provider: str) -> tuple[SnapshotSource, SnapshotSource]:
+    """Devuelve (adapter primario, adapter BYMA) según el proveedor.
+
+    El adapter de BYMA resuelve el subyacente y delega en el primario, así que
+    los dos comparten proveedor: un CEDEAR se pide a la misma fuente que un
+    ticker US directo.
+    """
+    provider = provider.lower()
+    if provider not in PROVIDERS:
+        raise ValueError(f"proveedor desconocido: {provider!r} (opciones: {', '.join(PROVIDERS)})")
+
+    if provider == "fmp":
+        from .fmp import FmpAdapter, FmpClient
+
+        client = FmpClient()
+        primary = FmpAdapter(client)
+        return primary, BymaAdapter(underlying_adapter=primary)
+
+    primary = YFinanceAdapter()
+    return primary, BymaAdapter(underlying_adapter=primary)
+
+
 def build_service(
     *,
+    provider: str = DEFAULT_PROVIDER,
     cache_path: Optional[str] = None,
     ttl_hours: float = 24.0,
     use_cache: bool = True,
@@ -145,5 +174,8 @@ def build_service(
     else:
         store = SnapshotCache(ttl_hours=ttl_hours)
 
-    service = FundamentalsService(store, target_currency=target_currency, fx=fx)
+    primary, byma = _build_adapters(provider)
+    service = FundamentalsService(
+        store, primary, byma, target_currency=target_currency, fx=fx
+    )
     return service, store

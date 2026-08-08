@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from ..analysis.profile import CompanyProfile, build_profile
+from ..analysis.profile import CompanyProfile, company_profile
 from ..analysis.series import FinancialHistory
 from ..analysis.valuation import ValuationProfile
 from ..fetcher.byma_adapter import resolve_symbol
@@ -131,10 +131,12 @@ def _summary(profile: CompanyProfile) -> dict[str, Any]:
     return summary
 
 
-def run_brief(ticker: str, *, years: int = 5) -> dict[str, Any]:
+def run_brief(ticker: str, *, years: int = 5, provider: str = "yfinance") -> dict[str, Any]:
     """Trae y calcula todo el análisis profundo de un ticker. Propaga `FetchError`."""
     symbol, requested_as = resolve_symbol(ticker)
-    profile = build_profile(symbol, requested_as=requested_as, max_years=years)
+    profile = company_profile(
+        symbol, provider=provider, requested_as=requested_as, max_years=years
+    )
     s = profile.snapshot
 
     return {

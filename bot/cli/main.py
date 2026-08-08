@@ -182,6 +182,7 @@ def run_screener(args: argparse.Namespace) -> int:
     logger.info("universo: %d ticker(s)", len(tickers))
 
     service, cache = build_service(
+        provider=args.provider,
         cache_path=args.cache_path,
         ttl_hours=args.cache_ttl_hours,
         use_cache=not args.no_cache,
@@ -221,7 +222,7 @@ def run_brief(args: argparse.Namespace) -> int:
     """Arma el prompt de análisis con los datos de Capa 1 ya calculados."""
     # Import diferido: traer 5 años de balances y precios es mucho más caro que
     # el screener, y no tiene por qué cargarse cuando no se usa.
-    from ..analysis.profile import build_profile
+    from ..analysis.profile import company_profile
     from ..brief.prompt import build_prompt
     from ..brief.render import render_data_block
     from ..fetcher.byma_adapter import resolve_symbol
@@ -239,7 +240,9 @@ def run_brief(args: argparse.Namespace) -> int:
         context = Path(args.context_file).read_text(encoding="utf-8")
 
     try:
-        profile = build_profile(symbol, requested_as=requested_as, max_years=args.years)
+        profile = company_profile(
+            symbol, provider=args.provider, requested_as=requested_as, max_years=args.years
+        )
     except FetchError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_NO_DATA
@@ -265,7 +268,12 @@ def run_serve(args: argparse.Namespace) -> int:
     from ..web.server import serve
 
     try:
-        serve(host=args.host, port=args.port, open_browser=not args.no_browser)
+        serve(
+            host=args.host,
+            port=args.port,
+            open_browser=not args.no_browser,
+            provider=args.provider,
+        )
     except OSError as exc:
         print(f"no se pudo levantar en {args.host}:{args.port} — {exc}", file=sys.stderr)
         return EXIT_USAGE
@@ -273,6 +281,20 @@ def run_serve(args: argparse.Namespace) -> int:
 
 
 # --- parser ----------------------------------------------------------------
+
+
+def _add_provider(parser: argparse.ArgumentParser) -> None:
+    """`--provider` compartido. Default de `BOT_PROVIDER` o yfinance."""
+    from ..config import default_provider
+    from ..fetcher.service import PROVIDERS
+
+    parser.add_argument(
+        "--provider",
+        choices=PROVIDERS,
+        default=default_provider(),
+        help="fuente de datos: yfinance (scrape, local) o fmp (API con key, para deploy). "
+        "Default de BOT_PROVIDER.",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -316,6 +338,7 @@ def build_parser() -> argparse.ArgumentParser:
     output = screener.add_argument_group("salida")
     output.add_argument("--json-out", help="escribe el resultado completo a un archivo JSON")
 
+    _add_provider(screener)
     screener.set_defaults(func=run_screener)
 
     brief = sub.add_parser(
@@ -334,6 +357,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--context-file",
         help="archivo con tu contexto de inversor, reemplaza el default",
     )
+    _add_provider(brief)
     brief.set_defaults(func=run_brief)
 
     serve = sub.add_parser("serve", help="levanta la web local del screener")
@@ -344,13 +368,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="default: 127.0.0.1 (sólo esta máquina). Cambialo sabiendo lo que hacés.",
     )
     serve.add_argument("--no-browser", action="store_true", help="no abre el navegador solo")
+    _add_provider(serve)
     serve.set_defaults(func=run_serve)
 
     return parser
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    parser = build_parser()
+    try:
+        parser = build_parser()
+    except ValueError as exc:
+        # p. ej. BOT_PROVIDER mal seteado: se lee al construir el parser. Mejor
+        # un mensaje limpio que un traceback.
+        print(f"error de configuración: {exc}", file=sys.stderr)
+        return EXIT_USAGE
     args = parser.parse_args(argv)
 
     logging.basicConfig(

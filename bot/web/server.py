@@ -90,7 +90,11 @@ class ScreenerHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             return self._send_error(HTTPStatus.BAD_REQUEST, f"parámetro inválido: {exc}")
 
-        logger.info("screen: %d ticker(s), method=%s, cache=%s", len(tickers), method.value, use_cache)
+        provider = self.server.provider  # type: ignore[attr-defined]
+        logger.info(
+            "screen: %d ticker(s), provider=%s, method=%s, cache=%s",
+            len(tickers), provider, method.value, use_cache,
+        )
         try:
             payload = run_screen(
                 tickers,
@@ -99,6 +103,7 @@ class ScreenerHandler(BaseHTTPRequestHandler):
                 min_peers=min_peers,
                 min_metrics=min_metrics,
                 use_cache=use_cache,
+                provider=provider,
             )
         except Exception as exc:  # noqa: BLE001
             # El batch ya tolera fallas por ticker; si explota acá es un bug
@@ -126,9 +131,10 @@ class ScreenerHandler(BaseHTTPRequestHandler):
         # que el screener, y esta ruta no se pega en cada arranque del server.
         from .brief_api import run_brief
 
-        logger.info("brief: %s (%d años)", ticker, years)
+        provider = self.server.provider  # type: ignore[attr-defined]
+        logger.info("brief: %s (%d años, provider=%s)", ticker, years, provider)
         try:
-            payload = run_brief(ticker, years=years)
+            payload = run_brief(ticker, years=years, provider=provider)
         except FetchError as exc:
             # Ticker inexistente o CEDEAR sin subyacente mapeado: culpa del
             # input, no del servidor.
@@ -179,12 +185,20 @@ class ScreenerHandler(BaseHTTPRequestHandler):
         logger.debug("%s - %s", self.address_string(), format % args)
 
 
-def serve(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True) -> None:
+def serve(
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    open_browser: bool = True,
+    provider: str = "yfinance",
+) -> None:
     """Levanta el servidor. Bloquea hasta Ctrl-C."""
     httpd = ThreadingHTTPServer((host, port), ScreenerHandler)
+    # El handler se instancia por request; el provider vive en el server y el
+    # handler lo lee de ahí (self.server.provider).
+    httpd.provider = provider  # type: ignore[attr-defined]
     url = f"http://{host}:{port}"
 
-    print(f"\n  Screener en {url}")
+    print(f"\n  Screener en {url}  (datos: {provider})")
     print("  Ctrl-C para cortar\n")
 
     if open_browser:
