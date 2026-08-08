@@ -248,8 +248,31 @@ function showLoading(count) {
   }, 250);
 }
 
+/** "hace 3 h" / "hace 2 días". Para declarar la antigüedad del precalculado. */
+function describeAge(iso) {
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return "en fecha desconocida";
+  const hours = (Date.now() - then.getTime()) / 36e5;
+  if (hours < 1) return "hace menos de una hora";
+  if (hours < 24) return `hace ${Math.round(hours)} h`;
+  const days = Math.round(hours / 24);
+  return `hace ${days} día${days === 1 ? "" : "s"}`;
+}
+
 function showSummary(meta) {
   els.status.className = "status";
+
+  // El precalculado no tiene tiempo de fetch ni hits de cache que mostrar —
+  // no salió a buscar nada. Lo que sí importa declarar es cuán viejo es.
+  if (meta.precomputed) {
+    els.status.innerHTML =
+      `<span><b>${meta.ok}</b> empresas · ranking precalculado</span>` +
+      ` <span>· generado ${describeAge(meta.generated_at)}</span>` +
+      (meta.failed ? ` <span>· <b>${meta.failed}</b> sin datos</span>` : "") +
+      ` <span>· ${meta.metrics.map((m) => m.label).join(", ")}</span>`;
+    return;
+  }
+
   els.status.innerHTML =
     `<span><b>${meta.ok}</b> con datos</span>` +
     (meta.failed ? ` <span>· <b>${meta.failed}</b> sin datos</span>` : "") +
@@ -303,6 +326,39 @@ async function runScreen(event) {
   }
 }
 
+/** Carga el ranking precalculado del universo grande. No sale a buscar datos.
+ *
+ * Es lo que se muestra al abrir la web: correr ~100 tickers en vivo serían
+ * ~4 requests por ticker contra un free tier de 250/día, así que el primer
+ * visitante del día dejaría sin datos a todos los demás.
+ */
+async function loadPrecomputed({ silent = false } = {}) {
+  els.run.disabled = true;
+  els.status.hidden = false;
+  els.status.className = "status";
+  els.status.innerHTML =
+    `<span class="spinner"></span><span>Cargando el ranking precalculado…</span>`;
+
+  try {
+    const response = await fetch("/api/top");
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error ?? `HTTP ${response.status}`);
+
+    lastPayload = payload;
+    render(payload);
+    showSummary(payload.meta);
+    return true;
+  } catch (error) {
+    // `silent` es para el arranque: si todavía no se generó el archivo, no
+    // tiene sentido mostrarle un error al usuario — se cae a un análisis en
+    // vivo del universo chico y listo.
+    if (!silent) showError(`No se pudo cargar el ranking precalculado: ${error.message}`);
+    return false;
+  } finally {
+    els.run.disabled = false;
+  }
+}
+
 // El top-N es un filtro de vista: re-renderizar no cuesta un fetch nuevo.
 els.topn.addEventListener("change", () => lastPayload && render(lastPayload));
 
@@ -321,6 +377,17 @@ els.tickers.addEventListener("keydown", (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") runScreen(e);
 });
 
+// El primero no llena el textarea como los otros: dispara la carga del
+// ranking precalculado, que es de otra naturaleza (no sale a buscar datos).
+const topButton = document.createElement("button");
+topButton.type = "button";
+topButton.textContent = "Top 100";
+topButton.title =
+  "Ranking precalculado de las ~100 empresas más líquidas de EE.UU. " +
+  "Instantáneo y no consume cuota del proveedor.";
+topButton.addEventListener("click", () => loadPrecomputed());
+els.presets.appendChild(topButton);
+
 Object.entries(PRESETS).forEach(([name, tickers]) => {
   const button = document.createElement("button");
   button.type = "button";
@@ -335,7 +402,10 @@ Object.entries(PRESETS).forEach(([name, tickers]) => {
 els.tickers.value = localStorage.getItem("tickers") ?? TOP_VOLUME;
 updateMethodInfo();
 
-// Auto-análisis al abrir: el objetivo es que la página ya tenga resultados
-// sin que haga falta escribir nada ni apretar "Analizar" — con los tickers
-// más importantes por default, o con la última búsqueda si ya usaste la web.
-runScreen();
+// Auto-análisis al abrir: la página arranca con el ranking precalculado de las
+// ~100 más líquidas — instantáneo y sin gastar cuota. El textarea queda con el
+// universo chico, que es lo que se corre en vivo si apretás "Analizar".
+// Si el precalculado todavía no se generó, se cae a un análisis en vivo.
+loadPrecomputed({ silent: true }).then((ok) => {
+  if (!ok) runScreen();
+});

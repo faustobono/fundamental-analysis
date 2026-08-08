@@ -60,9 +60,19 @@
       EE.UU. en el default a propósito, por el punto de CEDEARs/FMP de
       arriba. Ver `kickoff.md`.
 
+- [x] Precalcular el ranking de un universo grande (~100 tickers) para que la
+      web lo sirva al abrir sin gastar cuota del proveedor:
+      `python -m bot precompute` → `bot/web/data/top100.json` → `/api/top`.
+      Ver `DECISIONS.md`.
+- [x] Rediseño visual de la web: más moderno, minimalista y profesional.
+      `styles.css` reescrito conservando todos los selectores que genera el JS.
+
 ## Baja prioridad
 
-- [ ] Evaluar cache para el comando `brief`.
+- [x] Evaluar cache para el comando `brief` — hecho: `PayloadCache` cachea el
+      payload por `ticker+años+proveedor` con TTL de 24hs.
+- [ ] Refrescar `top100.json` con alguna periodicidad (hoy es a mano; evaluar
+      si vale un GitHub Action que corra `precompute` y abra un PR).
 - [ ] Evaluar una fuente de segmentos de ingresos.
 - [ ] Evaluar backtesting del ranking.
 - [ ] Evaluar soporte para más de cinco ejercicios si una fuente futura lo permite.

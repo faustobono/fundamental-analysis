@@ -17,6 +17,13 @@ from ..analysis.profile import CompanyProfile, company_profile
 from ..analysis.series import FinancialHistory
 from ..analysis.valuation import ValuationProfile
 from ..fetcher.byma_adapter import resolve_symbol
+from ..fetcher.cache import (
+    DEFAULT_CACHE_PATH,
+    DEFAULT_TTL_HOURS,
+    NullPayloadCache,
+    PayloadCache,
+    brief_key,
+)
 
 #: (nombre del campo en AnnualPeriod, etiqueta, formato). 'roic' es la única
 #: métrica derivada por método en vez de atributo; se resuelve aparte.
@@ -136,8 +143,43 @@ def _summary(profile: CompanyProfile) -> dict[str, Any]:
     return summary
 
 
-def run_brief(ticker: str, *, years: int = 5, provider: str = "yfinance") -> dict[str, Any]:
-    """Trae y calcula todo el análisis profundo de un ticker. Propaga `FetchError`."""
+def run_brief(
+    ticker: str,
+    *,
+    years: int = 5,
+    provider: str = "yfinance",
+    use_cache: bool = True,
+    cache_ttl_hours: float = DEFAULT_TTL_HOURS,
+    cache_path: Optional[str] = None,
+) -> dict[str, Any]:
+    """Análisis profundo de un ticker, del cache si está vigente. Propaga `FetchError`.
+
+    El cache importa más acá que en el screener: un brief son 5 ejercicios de
+    balances más el histórico de precios, y la web lo pide sola al abrir. Sin
+    esto, cada visita gasta esa cuota de nuevo para el mismo ticker.
+
+    Sólo se cachea el resultado exitoso: un `FetchError` (ticker inexistente,
+    CEDEAR sin mapear, proveedor caído) se propaga sin dejar nada guardado.
+    """
+    key = brief_key(ticker, years, provider)
+    cache = (
+        PayloadCache(cache_path or DEFAULT_CACHE_PATH, ttl_hours=cache_ttl_hours)
+        if use_cache
+        else NullPayloadCache()
+    )
+    try:
+        cached = cache.get(key)
+        if cached is not None:
+            return {**cached, "cached": True}
+        payload = _build_brief(ticker, years=years, provider=provider)
+        cache.put(key, payload)
+    finally:
+        cache.close()
+    return {**payload, "cached": False}
+
+
+def _build_brief(ticker: str, *, years: int, provider: str) -> dict[str, Any]:
+    """Trae y calcula todo el análisis profundo, sin pasar por el cache."""
     symbol, requested_as = resolve_symbol(ticker)
     profile = company_profile(
         symbol, provider=provider, requested_as=requested_as, max_years=years

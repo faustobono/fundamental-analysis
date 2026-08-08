@@ -104,8 +104,11 @@
     }
     box.insertAdjacentHTML(
       "beforeend",
+      // Sin paréntesis alrededor del ticker: `.identity-line` es un flex con
+      // `gap`, así que un "(" suelto sería un item más y quedaría separado del
+      // texto. El <code> ya se distingue solo por tipografía y color.
       `<p class="identity-line">
-        <strong>${id.company_name ?? id.ticker}</strong> (<code>${id.ticker}</code>)
+        <strong>${id.company_name ?? id.ticker}</strong><code>${id.ticker}</code>
         ${tags.join(" ")}
       </p>
       <p class="meta-line">

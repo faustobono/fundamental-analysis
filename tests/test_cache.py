@@ -4,7 +4,14 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from bot.fetcher.cache import NullCache, SnapshotCache, default_cache_path
+from bot.fetcher.cache import (
+    NullCache,
+    NullPayloadCache,
+    PayloadCache,
+    SnapshotCache,
+    brief_key,
+    default_cache_path,
+)
 from bot.models import SCHEMA_VERSION, FundamentalSnapshot
 
 
@@ -150,3 +157,70 @@ class TestNullCache:
         cache.put(snapshot())
         assert cache.get("TEST") is None
         assert list(cache.tickers()) == []
+
+
+class TestPayloadCache:
+    """Cache del brief: un informe son 5 ejercicios de balances más el
+    histórico de precios, y hasta ahora se retraía entero en cada request."""
+
+    @pytest.fixture
+    def cache(self, tmp_path, clock):
+        with PayloadCache(tmp_path / "payloads.db", ttl_hours=24.0, clock=clock) as c:
+            yield c
+
+    def test_guarda_y_devuelve(self, cache):
+        cache.put("brief:AAPL:5:fmp", {"identity": {"ticker": "AAPL"}})
+        assert cache.get("brief:AAPL:5:fmp")["identity"]["ticker"] == "AAPL"
+
+    def test_una_clave_que_no_esta(self, cache):
+        assert cache.get("brief:NADA:5:fmp") is None
+
+    def test_vence_con_el_ttl(self, cache, clock):
+        cache.put("k", {"v": 1})
+        clock.advance(hours=23)
+        assert cache.get("k") is not None
+        clock.advance(hours=2)
+        assert cache.get("k") is None
+
+    def test_convive_con_los_snapshots_en_el_mismo_archivo(self, tmp_path, clock):
+        # Son dos tablas del mismo SQLite: abrir una no puede pisar la otra.
+        path = tmp_path / "compartido.db"
+        with SnapshotCache(path, clock=clock) as snapshots, PayloadCache(path, clock=clock) as payloads:
+            snapshots.put(snapshot("AAPL"))
+            payloads.put("brief:AAPL:5:fmp", {"v": 1})
+            assert snapshots.get("AAPL") is not None
+            assert payloads.get("brief:AAPL:5:fmp") == {"v": 1}
+
+    def test_una_fila_corrupta_se_descarta_en_vez_de_romper(self, cache):
+        cache._conn.execute(
+            "INSERT INTO payloads (key, payload, fetched_at, schema_version) VALUES (?, ?, ?, ?)",
+            ("roto", "{no soy json", cache._clock().timestamp(), SCHEMA_VERSION),
+        )
+        cache._conn.commit()
+        assert cache.get("roto") is None
+
+    def test_ignora_el_cache_de_un_schema_viejo(self, cache):
+        cache._conn.execute(
+            "INSERT INTO payloads (key, payload, fetched_at, schema_version) VALUES (?, ?, ?, ?)",
+            ("viejo", '{"v": 1}', cache._clock().timestamp(), SCHEMA_VERSION - 1),
+        )
+        cache._conn.commit()
+        assert cache.get("viejo") is None
+
+
+class TestBriefKey:
+    def test_los_tres_parametros_cambian_la_clave(self):
+        base = brief_key("AAPL", 5, "fmp")
+        assert base != brief_key("MSFT", 5, "fmp")
+        assert base != brief_key("AAPL", 3, "fmp")
+        assert base != brief_key("AAPL", 5, "yfinance")
+
+    def test_normaliza_el_ticker(self):
+        assert brief_key(" aapl ", 5, "fmp") == brief_key("AAPL", 5, "fmp")
+
+
+class TestNullPayloadCache:
+    def test_nunca_devuelve_nada(self):
+        cache = NullPayloadCache()
+        cache.put("k", {"v": 1})
+        assert cache.get("k") is None

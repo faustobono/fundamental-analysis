@@ -24,6 +24,7 @@ from ..cli.main import parse_metrics
 from ..config import default_provider
 from ..models import FetchError
 from ..scorer.metrics import Method
+from . import precomputed
 from .api import parse_tickers, run_screen
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,16 @@ STATIC_FILES = {
 #: Tope defensivo: el universo lo escribe una persona en un textarea, no un
 #: proceso. Sin esto, un pegado accidental dispara cientos de fetches.
 MAX_TICKERS = 150
+
+#: Cuánto puede reusar el navegador una respuesta de la API sin volver a
+#: pedirla. Corto a propósito: el cache de verdad es el del servidor (SQLite,
+#: 24hs), esto sólo evita que moverse por la página redispare el mismo request.
+#: Con `cache=0` se manda `no-store` y no se reusa nada.
+API_MAX_AGE = 300
+
+#: El ranking precalculado sólo cambia cuando alguien corre `bot precompute`,
+#: así que puede vivir más tiempo en el navegador.
+PRECOMPUTED_MAX_AGE = 900
 
 
 def provider_for(server: object) -> str:
@@ -74,6 +85,8 @@ class ScreenerHandler(BaseHTTPRequestHandler):
             return self._serve_screen(parse_qs(route.query))
         if path == "/api/brief":
             return self._serve_brief(parse_qs(route.query))
+        if path == "/api/top":
+            return self._serve_top()
         if path == "/api/health":
             return self._send_json({"status": "ok"})
         return self._send_error(HTTPStatus.NOT_FOUND, f"no existe {path}")
@@ -124,7 +137,22 @@ class ScreenerHandler(BaseHTTPRequestHandler):
             logger.exception("screen falló")
             return self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"error interno: {exc}")
 
-        self._send_json(payload)
+        self._send_json(payload, max_age=API_MAX_AGE if use_cache else 0)
+
+    def _serve_top(self) -> None:
+        """Ranking precalculado del universo grande. No toca al proveedor.
+
+        Es lo que se sirve al abrir la web: correrlo en vivo serían ~4 requests
+        por ticker contra un free tier de 250/día, o sea que el primer visitante
+        del día dejaría sin datos a todos los demás.
+        """
+        payload = precomputed.load()
+        if payload is None:
+            return self._send_error(
+                HTTPStatus.NOT_FOUND,
+                "todavía no hay ranking precalculado; corré `python -m bot precompute`",
+            )
+        self._send_json(payload, max_age=PRECOMPUTED_MAX_AGE)
 
     def _serve_brief(self, query: dict[str, list[str]]) -> None:
         def first(key: str, default: str = "") -> str:
@@ -137,6 +165,7 @@ class ScreenerHandler(BaseHTTPRequestHandler):
 
         try:
             years = int(first("years", "5"))
+            use_cache = first("cache", "1") != "0"
         except ValueError as exc:
             return self._send_error(HTTPStatus.BAD_REQUEST, f"parámetro inválido: {exc}")
 
@@ -145,9 +174,9 @@ class ScreenerHandler(BaseHTTPRequestHandler):
         from .brief_api import run_brief
 
         provider = provider_for(self.server)
-        logger.info("brief: %s (%d años, provider=%s)", ticker, years, provider)
+        logger.info("brief: %s (%d años, provider=%s, cache=%s)", ticker, years, provider, use_cache)
         try:
-            payload = run_brief(ticker, years=years, provider=provider)
+            payload = run_brief(ticker, years=years, provider=provider, use_cache=use_cache)
         except FetchError as exc:
             # Ticker inexistente o CEDEAR sin subyacente mapeado: culpa del
             # input, no del servidor.
@@ -156,7 +185,7 @@ class ScreenerHandler(BaseHTTPRequestHandler):
             logger.exception("brief falló")
             return self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"error interno: {exc}")
 
-        self._send_json(payload)
+        self._send_json(payload, max_age=API_MAX_AGE if use_cache else 0)
 
     def _serve_static(self, filename: str) -> None:
         path = STATIC_DIR / filename
@@ -168,22 +197,34 @@ class ScreenerHandler(BaseHTTPRequestHandler):
         content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
         if content_type.startswith(("text/", "application/javascript")):
             content_type += "; charset=utf-8"
-        self._send(HTTPStatus.OK, content_type, body, cache=False)
+        self._send(HTTPStatus.OK, content_type, body)
 
     # --- respuestas --------------------------------------------------------
 
-    def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
+    def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK, max_age: int = 0) -> None:
         body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
-        self._send(status, "application/json; charset=utf-8", body)
+        # Un error nunca se cachea: si el proveedor se recupera en un minuto, el
+        # navegador tiene que poder enterarse.
+        self._send(
+            status,
+            "application/json; charset=utf-8",
+            body,
+            max_age=max_age if status == HTTPStatus.OK else 0,
+        )
 
     def _send_error(self, status: HTTPStatus, message: str) -> None:
         self._send_json({"error": message}, status)
 
-    def _send(self, status: HTTPStatus, content_type: str, body: bytes, cache: bool = False) -> None:
+    def _send(self, status: HTTPStatus, content_type: str, body: bytes, max_age: int = 0) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
-        if not cache:
+        if max_age > 0:
+            # `private`: es la respuesta para este usuario, no para un CDN
+            # compartido. Sirve para no redisparar el mismo request al moverse
+            # por la página; el cache real es el del servidor.
+            self.send_header("Cache-Control", f"private, max-age={max_age}")
+        else:
             # Sin esto hay que hacer hard-refresh cada vez que se toca el CSS.
             self.send_header("Cache-Control", "no-store")
         self.end_headers()

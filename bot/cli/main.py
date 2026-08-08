@@ -262,6 +262,44 @@ def run_brief(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def run_precompute(args: argparse.Namespace) -> int:
+    """Calcula el ranking del universo grande y lo deja versionado en el repo.
+
+    Se corre a mano, local, con yfinance: FMP cobra 4 requests por ticker y el
+    free tier son 250/día, así que precalcular ~100 tickers contra FMP gastaría
+    la cuota entera. yfinance no tiene cuota y acá no hay IP de datacenter que
+    lo bloquee.
+    """
+    from ..web.api import run_screen
+    from ..web.precomputed import TOP_UNIVERSE, save, stamp
+
+    tickers = TOP_UNIVERSE
+    print(f"calculando {len(tickers)} tickers con {args.provider}… (tarda unos minutos)")
+
+    payload = run_screen(
+        tickers,
+        metrics=DEFAULT_METRICS,
+        method=Method.PERCENTILE,
+        top_n=0,  # el front filtra el top-N en cliente
+        use_cache=not args.no_cache,
+        provider=args.provider,
+    )
+    stamp(payload, universe_size=len(tickers))
+
+    meta = payload["meta"]
+    if not meta["ok"]:
+        print("\nno se pudo traer ningún fundamental; no se escribe nada.", file=sys.stderr)
+        return EXIT_NO_DATA
+
+    path = save(payload, Path(args.out) if args.out else None)
+    print(f"\n{meta['ok']} ok · {meta['failed']} sin datos · {len(payload['sectors'])} sectores")
+    for failure in payload["failures"]:
+        print(f"   ⚠ {failure['ticker']}: {failure['reason']}")
+    print(f"\nescrito en {path}")
+    print("Commiteá el archivo: es lo que sirve la web sin gastar cuota del proveedor.")
+    return EXIT_OK
+
+
 def run_serve(args: argparse.Namespace) -> int:
     # Import diferido: `python -m bot screener` no tiene por qué cargar el
     # servidor, y el servidor importa de vuelta a este módulo (parse_metrics).
@@ -359,6 +397,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_provider(brief)
     brief.set_defaults(func=run_brief)
+
+    precompute = sub.add_parser(
+        "precompute",
+        help="calcula el ranking del universo grande y lo guarda para que la web lo sirva sin gastar cuota",
+    )
+    precompute.add_argument(
+        "--out", help="destino del JSON (default: bot/web/data/top100.json)"
+    )
+    precompute.add_argument(
+        "--no-cache", action="store_true", help="ignora el cache y refetchea todo"
+    )
+    _add_provider(precompute)
+    precompute.set_defaults(func=run_precompute)
 
     serve = sub.add_parser("serve", help="levanta la web local del screener")
     serve.add_argument("--port", type=int, default=8000)

@@ -88,6 +88,52 @@ solución permanente. El universo default de auto-carga de la web (ver más
 abajo) sigue siendo sólo EE.UU. por ahora, para no depender de ese
 fallback en la primera impresión de cualquier visitante.
 
+## Ranking precalculado en vez de en vivo
+
+El screener gasta 4 requests de FMP por ticker (perfil + income + balance +
+cash flow). Un universo de ~100 empresas son ~400 requests **por carga de
+página**, contra un free tier de 250/día — y como la web se auto-analiza al
+abrir, el primer visitante quemaría la cuota del día entero.
+
+Por eso el universo grande se calcula una vez (`python -m bot precompute`) y
+se versiona en `bot/web/data/top100.json`. Decisiones dentro de esa decisión:
+
+- **Se guarda el mismo payload que devuelve `/api/screen`**, no un formato
+  propio: el front lo renderiza sin ramificar, y no hay dos serializaciones
+  que puedan desincronizarse.
+- **Se genera con yfinance, no con FMP.** yfinance no tiene cuota y corre
+  local, donde no hay IP de datacenter que lo bloquee. Precalcular contra FMP
+  gastaría de una la cuota que este mecanismo justamente busca ahorrar.
+- **Es un artefacto commiteado, no un job automático.** Queda revisable en el
+  diff, se despliega con el repo y no agrega infraestructura (ni cron, ni
+  almacenamiento externo, ni una dependencia nueva).
+- **El universo es una lista curada a mano**, no derivada del volumen diario:
+  derivarla exigiría un endpoint que el free tier no da, y cambiaría todos los
+  días, con lo cual cada refresco mezclaría "cambió el fundamental" con
+  "cambió el universo". Se arma priorizando cobertura sectorial, porque el
+  ranking es intra-sector y un sector con menos de `min_peers` queda sin
+  rankear.
+- **Se declara la antigüedad en la interfaz** ("generado hace 3 h"). Servir un
+  dato viejo sin decir que es viejo sería el único uso deshonesto de esto.
+
+## Cache del brief
+
+El `brief` no cacheaba nada: cada request retraía 5 ejercicios de balances y
+el histórico de precios, aunque fuera el mismo ticker de hace un minuto — y la
+web lo pide sola al abrir, así que era cuota tirada en cada visita. Se cachea
+el **payload final** y no el `CompanyProfile`, porque el payload ya es JSON
+puro: serializar el objeto entero (historia, valuación, scores) sería trabajo y
+superficie de bugs para llegar al mismo lugar. La clave es
+`ticker + años + proveedor`, y sólo se guardan los resultados exitosos: un
+error se propaga sin quedar cacheado, para que el siguiente intento vuelva a
+probar.
+
+Las respuestas de la API además viajan con `Cache-Control: private, max-age`
+corto cuando el request pidió cache, para que moverse por la página no
+redispare el mismo fetch. Con `cache=0` se manda `no-store`, así el usuario
+conserva la forma de forzar datos frescos. Los estáticos siguen en `no-store`
+a propósito: sin eso hay que hard-refreshear ante cada cambio de CSS.
+
 ## Auto-carga de la web
 
 Las dos pestañas de la web se auto-analizan al abrir, sin que el usuario
@@ -100,6 +146,20 @@ usó la web antes, se auto-corre su última búsqueda (`localStorage`) en vez
 del default. El universo default es sólo EE.UU. porque los CEDEARs
 argentinos hoy fallan en producción (ver el punto anterior) — meterlos acá
 mostraría "sin datos" en la primera carga de cualquier visitante.
+
+## Diseño de la interfaz
+
+La jerarquía la hacen la tipografía y el espacio, no las cajas. Se evita el
+marco-dentro-de-marco (panel con borde > tarjeta con borde > detalle con
+fondo): las secciones del informe se separan con aire y una línea de un píxel,
+y el peso visual queda para los números, que es lo que se viene a mirar. Todas
+las cifras usan `tabular-nums`: en una columna de números, que el 1 ocupe menos
+que el 8 rompe la alineación y se lee peor.
+
+Sigue sin haber build step, framework ni fuentes externas — una hoja de estilos
+y el stack de fuentes del sistema. El tema oscuro no es un agregado: los tokens
+de color se definen para los dos modos y `color-scheme` hace que los controles
+nativos (select, checkbox, scrollbar) acompañen.
 
 ## Subagentes de Claude Code
 

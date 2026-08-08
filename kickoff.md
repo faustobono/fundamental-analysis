@@ -8,7 +8,7 @@ Proyecto: bot de análisis fundamental en Python.
 - La integración con Financial Modeling Prep (FMP) fue validada contra la API real usando AAPL.
 - `yfinance` sigue siendo el proveedor por defecto.
 - FMP funciona mediante `FMP_API_KEY` y se selecciona con `BOT_PROVIDER=fmp` o `--provider fmp`.
-- La suite actual tiene `329 tests` y todos pasan sin red.
+- La suite actual tiene `354 tests` y todos pasan sin red.
 - Desplegado en Vercel: `https://fundscan.vercel.app` (el proyecto se
   renombró de `fundamental-analysis` a `fundscan`; el dominio viejo
   `fundamental-analysis-eight.vercel.app` puede seguir resolviendo por un
@@ -200,6 +200,56 @@ relación con este fix). El fix:
   bloquear IPs de datacenter, así que esto es "mejor que fallar siempre",
   no una garantía permanente. Si vuelve a romperse, revisar primero si
   yfinance está bloqueando, no asumir que el fix dejó de andar.
+
+Sesión de Claude Code (siguiente). El usuario preguntó en qué había quedado
+"lo de los 100 tickers con mayor volumen" — nunca había pedido 100: había
+pedido "lo más importante y con mayor volumen" sin número, y había quedado en
+8 mega-caps. Se le aclaró y se le mostró la cuenta que lo bloqueaba (4 requests
+de FMP por ticker × 100 = ~400 por carga, contra 250/día de free tier, con la
+web auto-analizando en cada visita). Eligió precalcular. Cuatro cambios:
+
+1. **Ranking precalculado.** Nuevo `bot/web/precomputed.py` (universo curado de
+   100 tickers de EE.UU. con cobertura sectorial, `stamp`/`save`/`load`) y
+   comando `python -m bot precompute`, que reusa `run_screen()` — o sea que el
+   JSON generado es exactamente el payload de `/api/screen` y el front lo pinta
+   sin ramificar. Se genera **local con yfinance** (sin cuota) y se versiona en
+   `bot/web/data/top100.json` (~426 KB). Nuevo endpoint `/api/top` que lo sirve
+   sin tocar el proveedor; si el archivo no está, 404 con el comando a correr.
+   El front lo carga al abrir y ofrece un botón "Top 100" para volver; el
+   textarea queda con el universo chico para las corridas en vivo. Se declara
+   la antigüedad en la interfaz ("generado hace 3 h"). Primera generación:
+   100/100 tickers ok, 11 sectores, ninguno "thin".
+2. **Cache del brief** (pedido del usuario: "si de un ticker se pidió request,
+   que no se vuelva a pedir"). El brief no cacheaba nada. Nuevo `PayloadCache`
+   en `bot/fetcher/cache.py` (tabla `payloads` aparte, mismo SQLite y mismo
+   TTL) que guarda el payload final —ya es JSON puro, no hace falta serializar
+   el `CompanyProfile`— con clave `ticker+años+proveedor`. Sólo cachea éxitos:
+   un `FetchError` se propaga sin guardarse. `run_brief` acepta `use_cache` y
+   `cache_path` (inyectable, como `build_service`).
+3. **Cacheo HTTP.** Las respuestas de la API iban todas con `no-store`, así que
+   el navegador re-pedía siempre. Ahora `/api/screen` y `/api/brief` mandan
+   `private, max-age=300` cuando el request pidió cache (`cache=0` sigue siendo
+   `no-store`), y `/api/top` 900. Los errores nunca se cachean. Los estáticos
+   siguen en `no-store` a propósito.
+4. **Rediseño visual** (pedido: "más moderno y minimalista, cambio rotundo,
+   simple pero profesional"). `styles.css` reescrito entero conservando todos
+   los selectores que genera el JS. Paleta neutra más fría y contrastada, header
+   translúcido con blur, pestañas como control segmentado, secciones del brief
+   sin marco (aire + línea de 1px en vez de ocho tarjetas), nombre de la empresa
+   como título de 22px, `tabular-nums` en todas las cifras, foco con anillo
+   suave. Dos bugs reales encontrados y corregidos verificando en el navegador:
+   (a) `.field label` (0,1,1) le ganaba a `.toggle` (0,1,0) y "Usar cache"
+   salía en mayúsculas — se subió a `.field label.toggle`; (b) en
+   `.identity-line`, que es flex con `gap`, los paréntesis sueltos alrededor del
+   ticker eran items del flex y quedaban separados ("Apple Inc. ( AAPL )") — se
+   sacaron del markup en `brief.js`.
+
+Verificación: 354 tests sin red, ruff limpio, y en navegador — dark y light,
+1280px y 375px, sin overflow horizontal, tablas anchas scrolleando dentro de su
+contenedor, sin errores de consola. El panel del navegador se ocultó a mitad de
+camino (problema de entorno, ya había pasado antes en esta sesión), así que la
+parte final se verificó por geometría y estilos computados en vez de
+screenshots — más preciso, de hecho.
 
 ## Protocolo de reanudación
 

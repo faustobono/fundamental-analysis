@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import http.client
 import json
+import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
+from http.server import ThreadingHTTPServer
 from types import SimpleNamespace
 
 import pytest
@@ -11,9 +15,35 @@ import pytest
 from bot.models import FundamentalSnapshot
 from bot.scorer.metrics import Method
 from bot.scorer.sector_scorer import SectorScorer
+from bot.web import precomputed
 from bot.web.api import _bar, _score_payload, _snapshot_payload, parse_tickers
-from bot.web.server import MAX_TICKERS, STATIC_FILES, STATIC_DIR, provider_for
+from bot.web.server import MAX_TICKERS, STATIC_FILES, STATIC_DIR, ScreenerHandler, provider_for
 from api.index import public_path
+
+
+@contextmanager
+def running_server():
+    """Levanta el handler real en un puerto libre. Ninguna ruta usada acá sale
+    a la red: `/api/top` sólo lee un archivo del disco."""
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), ScreenerHandler)
+    httpd.provider = "yfinance"
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield httpd.server_address[1]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def get(port: int, path: str):
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        conn.request("GET", path)
+        response = conn.getresponse()
+        return response.status, dict(response.getheaders()), response.read()
+    finally:
+        conn.close()
 
 
 def snap(ticker, sector="Technology", **metrics) -> FundamentalSnapshot:
@@ -163,3 +193,75 @@ class TestServidor:
     def test_hay_tope_de_tickers(self):
         # Un pegado accidental no puede disparar mil fetches a yfinance.
         assert 0 < MAX_TICKERS <= 500
+
+
+class TestUniversoPrecalculado:
+    def test_no_hay_tickers_repetidos(self):
+        universo = precomputed.TOP_UNIVERSE
+        assert len(set(universo)) == len(universo)
+
+    def test_estan_normalizados(self):
+        # El servicio compara en mayúscula; un ticker en minúscula sería un
+        # miss de cache silencioso contra el mismo ticker pedido a mano.
+        assert all(t == t.strip().upper() for t in precomputed.TOP_UNIVERSE)
+
+    def test_entra_en_el_tope_del_servidor(self):
+        assert len(precomputed.TOP_UNIVERSE) <= MAX_TICKERS
+
+    def test_stamp_declara_que_es_precalculado_y_cuando(self):
+        payload = precomputed.stamp({"meta": {"ok": 3}}, universe_size=100)
+        assert payload["meta"]["precomputed"] is True
+        assert payload["meta"]["universe_size"] == 100
+        # Tiene que ser parseable por `new Date()` en el front.
+        assert datetime.fromisoformat(payload["meta"]["generated_at"]).tzinfo is not None
+
+    def test_save_y_load_son_simetricos(self, tmp_path):
+        path = tmp_path / "sub" / "top.json"  # el subdirectorio no existe todavía
+        original = {"meta": {"ok": 2}, "sectors": [], "failures": []}
+        precomputed.save(original, path)
+        assert precomputed.load(path) == original
+
+    def test_load_devuelve_none_si_no_se_genero(self, tmp_path):
+        # No es un error: es "corré `python -m bot precompute`".
+        assert precomputed.load(tmp_path / "no-existe.json") is None
+
+    def test_load_devuelve_none_si_esta_corrupto(self, tmp_path):
+        path = tmp_path / "roto.json"
+        path.write_text("{no soy json", encoding="utf-8")
+        assert precomputed.load(path) is None
+
+
+class TestEndpointTop:
+    """`/api/top` end-to-end contra el handler real. Sin red: sólo lee disco."""
+
+    def test_sirve_el_ranking_precalculado(self, tmp_path, monkeypatch):
+        payload = {"meta": {"ok": 100, "precomputed": True}, "sectors": [], "failures": []}
+        path = tmp_path / "top.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        monkeypatch.setattr(precomputed, "DEFAULT_PATH", path)
+
+        with running_server() as port:
+            status, headers, body = get(port, "/api/top")
+
+        assert status == 200
+        assert json.loads(body)["meta"]["ok"] == 100
+        # Se puede reusar del navegador: sólo cambia cuando alguien regenera.
+        assert "max-age" in headers["Cache-Control"]
+
+    def test_sin_archivo_explica_como_generarlo(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(precomputed, "DEFAULT_PATH", tmp_path / "no-existe.json")
+
+        with running_server() as port:
+            status, headers, body = get(port, "/api/top")
+
+        assert status == 404
+        assert "precompute" in json.loads(body)["error"]
+        # Un error nunca se cachea: si se genera en un minuto, hay que verlo.
+        assert headers["Cache-Control"] == "no-store"
+
+    def test_los_estaticos_siguen_sin_cachearse(self):
+        # Deliberado: sin esto hay que hard-refreshear cada cambio de CSS.
+        with running_server() as port:
+            status, headers, _ = get(port, "/styles.css")
+        assert status == 200
+        assert headers["Cache-Control"] == "no-store"

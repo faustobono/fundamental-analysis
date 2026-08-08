@@ -123,13 +123,31 @@ Detalles de la UI que valen la pena:
 - **Los faltantes se muestran en gris con "sin dato"** en vez de esconderse: que a un
   banco le falte ROIC es información, no un hueco.
 - **Las dos pestañas se auto-analizan al abrir la web**, sin tocar nada: el
-  screener corre de entrada con los mega-caps de mayor volumen de EE.UU.
-  (`AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, JPM` — preset "Top volumen") y
-  el análisis profundo arranca mostrando el informe de AAPL. Si ya usaste la
-  web antes, se auto-corre tu última búsqueda en vez del default (queda en
-  `localStorage`). Sólo EE.UU. en el default a propósito: los CEDEARs
-  argentinos hoy fallan en producción contra FMP con un error de plan pago
-  (ver "Limitaciones conocidas").
+  screener muestra de entrada el **ranking precalculado de ~100 empresas**
+  (ver abajo) y el análisis profundo arranca con el informe de AAPL.
+- **El textarea sigue siendo la herramienta en vivo**: viene con un universo
+  chico (`AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, JPM`, o tu última
+  búsqueda) y "Analizar" corre ese universo contra el proveedor. El botón
+  "Top 100" vuelve al precalculado sin gastar cuota.
+
+### Ranking precalculado (`precompute`)
+
+```bash
+python -m bot precompute
+```
+
+Corre el screener sobre un universo curado de ~100 empresas líquidas de EE.UU.
+y deja el resultado en `bot/web/data/top100.json`, versionado en el repo. La web
+lo sirve en `/api/top` y es lo que se ve al abrir la página.
+
+Existe por una cuenta concreta: el screener gasta **4 requests de FMP por
+ticker**, así que 100 tickers son ~400 requests por carga de página contra un
+free tier de **250/día**. Sin precalcular, el primer visitante del día dejaría
+sin datos a todos los demás.
+
+Se corre a mano y **con yfinance**, que no tiene cuota (es el default local).
+No corre en Vercel. Al terminar hay que commitear el JSON: es lo que se
+despliega. Para refrescarlo, correlo de nuevo y commiteá el diff.
 
 ### Informe de una empresa
 
@@ -268,7 +286,7 @@ EBIT, así que ahí queda en `None` — y está bien, el ratio no aplica.
 .venv/bin/python -m pytest
 ```
 
-329 tests, sin red. El fetcher recibe una `ticker_factory` inyectable (yfinance) o un
+354 tests, sin red. El fetcher recibe una `ticker_factory` inyectable (yfinance) o un
 cliente HTTP inyectable (FMP), y el cache un reloj inyectable, así que todo el pipeline
 —fetcher → normalizer → scorer → analysis → web— se testea de punta a punta con dobles,
 para las dos fuentes.
@@ -281,8 +299,11 @@ para las dos fuentes.
 - **Sin segmentos de ingreso.** yfinance no los publica, así que el punto 1 del
   informe (cómo gana plata la empresa) lo tiene que aportar la Capa 2. Es el
   argumento concreto para una fuente paga.
-- **El `brief` no usa el cache.** Trae 5 años de balances y 60 precios en cada
-  corrida. Es de a un ticker, así que molesta poco, pero está sin cachear.
+- **El cache es efímero en Vercel.** Vive en SQLite (`~/.cache/fundamental-bot/`
+  local, `/tmp` en serverless) y cachea tanto los snapshots del screener como el
+  payload del `brief`, con TTL de 24hs. En Vercel `/tmp` no sobrevive a un cold
+  start, así que ahí el cache acelera dentro de un contenedor tibio pero no
+  entre invocaciones. Es un acelerador, no una fuente de verdad.
 - **La conversión de moneda pide un `FxProvider` explícito.** No hay tipo de cambio
   hardcodeado a propósito: quedaría viejo y mentiría en silencio.
 - **Los CEDEARs/ADRs argentinos exigen plan pago en FMP** (`HTTP 402` para
