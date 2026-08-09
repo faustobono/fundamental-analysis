@@ -23,7 +23,7 @@
       mode y mobile (375px) OK. Bug real encontrado y corregido en el camino:
       el popover se cerraba solo ante cualquier scroll (incluso el
       scroll-into-view de un click automatizado) — ahora reposiciona en vez de
-      cerrar. Sin commitear todavía.
+      cerrar.
 
 - [x] Corregir `gaps()` de `CompanyProfile`: acusaba a yfinance de no publicar
       segmentos incluso corriendo con `--provider fmp` (mensaje hardcodeado,
@@ -66,6 +66,14 @@
       Ver `DECISIONS.md`.
 - [x] Rediseño visual de la web: más moderno, minimalista y profesional.
       `styles.css` reescrito conservando todos los selectores que genera el JS.
+      Tres rondas: (1) primer rediseño (rechazado por el usuario, "parece muy
+      app barata"); (2) rehecho cargando las skills `dataviz`/`artifact-design`
+      — concepto tearsheet, acento separado de los semánticos; (3) dos ajustes
+      a pedido: barras de percentil de rampa azul a rampa neutra (el riel
+      teñido hacía que un `p0` se viera como barra llena) y el screener de
+      hoja-con-filas a grilla de fichas ("no quiero uno abajo del otro, quiero
+      cuadros"). El informe (`brief`) sigue en formato tearsheet. Detalle
+      completo en `DECISIONS.md` y `kickoff.md`.
 
 ## Baja prioridad
 

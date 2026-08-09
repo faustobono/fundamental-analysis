@@ -89,8 +89,9 @@ Abre `http://127.0.0.1:8000` solo. Escribís el universo, elegís método y sale
 ranking por sector con las barras de percentil; cada tarjeta expande a todos los
 ratios, la escala del negocio y los warnings de calidad del dato.
 
-El servidor bindea a `127.0.0.1`: sólo tu máquina. Sirve una allowlist fija de tres
-archivos estáticos, así que no hay path traversal posible. Tope de 150 tickers por
+El servidor bindea a `127.0.0.1`: sólo tu máquina. Sirve una allowlist fija de
+archivos estáticos (`bot/web/server.py::STATIC_FILES`), así que no hay path
+traversal posible. Tope de 150 tickers por
 corrida para que un pegado accidental no dispare cientos de fetches.
 
 ### Vercel

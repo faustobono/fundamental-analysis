@@ -378,10 +378,16 @@ Si aparece `Address already in use`, ya hay un servidor ejecutándose en ese pue
 
 ## Próximos pasos
 
-1. Probar un universo más grande para que el ranking sectorial tenga suficientes peers.
-2. Verificar el comportamiento de CEDEARs/ADRs usando FMP y `cedear_map.json`.
-3. Monitorear el consumo y los límites del plan FMP en producción.
-4. Documentar el procedimiento de actualización de Vercel si cambia el flujo.
+1. Monitorear el consumo y los límites del plan FMP en producción (el
+   precalculado de 100 tickers ya no compite por cuota, pero `/api/screen` y
+   `/api/brief` en vivo siguen dependiendo del free tier de 250/día).
+2. Refrescar `bot/web/data/top100.json` periódicamente (hoy es a mano con
+   `python -m bot precompute`; evaluar un GitHub Action que lo corra y abra un PR).
+3. Confirmar el comportamiento del fallback FMP→yfinance a lo largo del
+   tiempo: hoy funciona porque Vercel no está bloqueado por Yahoo, pero eso
+   puede cambiar sin aviso (ver "Última integración").
+4. Si se agrega una fuente de segmentos de ingresos, es el gap que más pesa
+   en `CompanyProfile.gaps()` hoy.
 
 ## Preparación para Vercel
 
