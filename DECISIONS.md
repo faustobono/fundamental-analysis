@@ -149,11 +149,24 @@ mostraría "sin datos" en la primera carga de cualquier visitante.
 
 ## Diseño de la interfaz
 
-Concepto: **tearsheet**. Es la hoja de análisis de un analista, no un tablero de
-tarjetas. La estructura la dan reglas de 1px y la alineación a un canto común
-(una canaleta izquierda de 56px que sostiene rangos y rótulos), no cajas
-apiladas. Un sector es UNA hoja con las empresas como filas — no N tarjetas
-flotando, que con 100 empresas en pantalla era puro ruido de marcos.
+Las dos vistas tienen tratamientos distintos porque tienen trabajos distintos:
+el informe **se lee**, el screener **se escanea**.
+
+- **Informe (`brief`): tearsheet.** Un documento, no un tablero. La estructura
+  la dan reglas de 1px y una canaleta izquierda de 56px donde vive el rótulo al
+  margen. Ocho tarjetas serían ocho marcos compitiendo con el contenido.
+- **Screener: grilla de fichas.** Cada empresa es una ficha en una grilla de 3
+  columnas — el patrón de *small multiples*: la misma unidad repetida, que es
+  justamente la forma para comparar muchas unidades iguales. Dentro de cada
+  ficha, la métrica ocupa dos renglones agrupados por significado: arriba
+  "qué y cuánto" (etiqueta + valor), abajo "dónde está frente a sus pares"
+  (barra + percentil). Poner el percentil junto al valor mezclaba las dos
+  lecturas y, de paso, apretaba la etiqueta hasta truncarla.
+
+  (Una versión intermedia puso el sector como UNA hoja con las empresas como
+  filas apiladas. Se descartó a pedido del usuario: en una grilla se comparan
+  varias empresas de un vistazo, y una lista vertical obliga a recorrerlas de a
+  una.)
 
 **El acento no es un color semántico.** Es la regla que más cambió el resultado.
 Antes el verde era el botón, la barra de percentil, el badge "barato" y el

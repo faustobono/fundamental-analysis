@@ -281,6 +281,40 @@ en mobile, sin errores de consola. Nota de entorno: los screenshots no siguen el
 scroll hecho por JS (salen en blanco), así que lo que está fuera del primer
 viewport se verificó por geometría y estilos computados.
 
+Sesión de Claude Code (siguiente, dos iteraciones de diseño más).
+
+1. **Barras de percentil a rampa neutra.** El usuario mandó una captura: en
+   dark, una fila `p0/4` mostraba una barra azul de punta a punta y parecía
+   llena — el peor del sector se leía como el mejor. Causa: yo había aplicado
+   mal el spec de meters ("el riel es un paso del mismo tono, así el estado se
+   lee a lo largo de toda la barra"), que describe un meter de *severidad*,
+   donde el relleno cambia de color según el estado. El nuestro es de un solo
+   tono a propósito, así que el riel teñido no aportaba nada. Ahora la rampa es
+   neutra: separación relleno/riel 8.1:1 en light y 5.4:1 en dark, riel a
+   1.25:1 contra la hoja. Verificado que `p0` renderiza 0px de relleno.
+2. **Screener a grilla de fichas** (pedido: "no quiero uno abajo del otro,
+   quiero cuadros"). Se revirtió la hoja-con-filas y quedó una grilla de 3
+   columnas (`minmax(300px, 1fr)`), que es el patrón de *small multiples*. La
+   métrica pasó a dos renglones agrupados por significado — arriba etiqueta +
+   valor, abajo barra + percentil. Ese reagrupamiento no es cosmético: tener el
+   percentil arriba se comía los ~47px que hacían que la etiqueta más larga
+   ("Crecimiento de ingresos YoY ↑", 180px medidos) se truncara en una ficha
+   angosta. El informe **no** se tocó: sigue siendo el tearsheet con canaleta,
+   porque se lee en vez de escanearse (ver `DECISIONS.md`).
+
+Sobre las skills: están cargadas las dos de diseño que existen (`dataviz` y
+`artifact-design`; la tercera, `artifact-diagramming`, es para diagramas). Lo
+que quedaba por minar eran los archivos de referencia de `dataviz` —
+`choosing-a-form.md` y `components.md` fueron los que dieron el encuadre de esta
+tanda. Quedan sin leer `interaction.md` y `color-formula.md`.
+
+Nota de entorno que empeoró: los screenshots del navegador se volvieron poco
+confiables — se renderizan a escala mínima después de cada `resize_window`, y
+no siguen el scroll hecho por JS. Funcionan bien una vez, en una pestaña recién
+creada y sin redimensionar. El resto se verificó midiendo en el DOM (ancho de
+columnas, si alguna etiqueta trunca vía `scrollWidth > clientWidth`, overflow,
+contrastes) — que para esto es más preciso que mirar.
+
 ## Protocolo de reanudación
 
 Codex, Claude Code y OpenCode comparten el mismo contexto versionado. Al iniciar
